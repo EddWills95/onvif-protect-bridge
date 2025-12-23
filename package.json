@@ -1,0 +1,9 @@
+{
+  "name": "onvif-rtsp-proxy",
+  "type": "module",
+  "private": true,
+  "dependencies": {
+    "express": "^4.19.2",
+    "soap": "^1.1.10"
+  }
+}
