@@ -1,6 +1,7 @@
-const RTSP_URI = "rtsp://rtsp.stream/pattern";
+const RTSP_URI = process.env.RTSP_URI;
 
 export function getStreamUri() {
+  console.log("getStreamUri called");
   return `<?xml version="1.0" encoding="UTF-8"?>
 <s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope">
   <s:Body>
