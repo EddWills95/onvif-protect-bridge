@@ -1,6 +1,7 @@
 const HOST = "http://192.168.1.66:8000";
 
 export function getServices() {
+  console.log("getServices called");
   return `<?xml version="1.0" encoding="UTF-8"?>
 <s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope">
   <s:Body>
@@ -12,6 +13,14 @@ export function getServices() {
           <Major>2</Major>
           <Minor>0</Minor>
         </Version>
+          <Capabilities>
+          <Device>
+            <UserManagement>true</UserManagement>
+              <Security>
+                <UsernameToken>true</UsernameToken>
+              </Security>
+          </Device>
+        </Capabilities>
       </Service>
       <Service>
         <Namespace>http://www.onvif.org/ver10/media/wsdl</Namespace>
