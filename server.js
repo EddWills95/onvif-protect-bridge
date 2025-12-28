@@ -1,14 +1,12 @@
 import http from "http";
+import { getLocalIPv4 } from "./getLocalIPv4.js";
+import { setupWSDiscovery } from "./ws-discovery.js";
 
-const HOST = "192.168.1.66";
+// const HOST = "192.168.1.66";
 const PORT = 8000;
-const RTSP_URI = "rtsp://192.168.1.66:8554/cam7";
+const RTSP_URI = `rtsp://${getLocalIPv4()}:8554/cam7`;
 
 /* ---------------- helpers ---------------- */
-
-function hasWSSecurity(xml) {
-  return xml.includes("<Security");
-}
 
 function soap(res, xml) {
   res.writeHead(200, { "Content-Type": "application/soap+xml" });
@@ -35,12 +33,16 @@ function envelope(body) {
 /* ---------------- device responses ---------------- */
 
 function getSystemDateAndTime() {
+  const now = new Date();
+
   return envelope(`
 <GetSystemDateAndTimeResponse xmlns="http://www.onvif.org/ver10/device/wsdl">
   <SystemDateAndTime>
     <UTCDateTime>
-      <Time><Hour>12</Hour><Minute>0</Minute><Second>0</Second></Time>
-      <Date><Year>2024</Year><Month>1</Month><Day>1</Day></Date>
+      <Time><Hour>${now.getUTCHours()}</Hour><Minute>${now.getUTCMinutes()}</Minute><Second>${now.getUTCSeconds()}</Second></Time>
+      <Date><Year>${now.getUTCFullYear()}</Year><Month>${
+    now.getUTCMonth() + 1
+  }</Month><Day>${now.getUTCDate()}</Day></Date>
     </UTCDateTime>
   </SystemDateAndTime>
 </GetSystemDateAndTimeResponse>`);
@@ -51,7 +53,7 @@ function getServices() {
 <GetServicesResponse xmlns="http://www.onvif.org/ver10/device/wsdl">
   <Service>
     <Namespace>http://www.onvif.org/ver10/media/wsdl</Namespace>
-    <XAddr>http://${HOST}:${PORT}/onvif/media_service</XAddr>
+    <XAddr>http://${getLocalIPv4()}:${PORT}/onvif/media_service</XAddr>
     <Version>
       <Major>2</Major>
       <Minor>0</Minor>
@@ -67,7 +69,7 @@ function getServices() {
 
   <Service>
     <Namespace>http://www.onvif.org/ver10/media/wsdl</Namespace>
-    <XAddr>http://${HOST}:${PORT}/onvif/media_service</XAddr>
+    <XAddr>http://${getLocalIPv4()}:${PORT}/onvif/media_service</XAddr>
     <Version><Major>2</Major><Minor>0</Minor></Version>
   </Service>
 </GetServicesResponse>`);
@@ -94,8 +96,8 @@ function getCapabilities() {
 function getDeviceInformation() {
   return envelope(`
 <GetDeviceInformationResponse xmlns="http://www.onvif.org/ver10/device/wsdl">
-  <Manufacturer>Generic</Manufacturer>
-  <Model>RTSP Bridge</Model>
+  <Manufacturer>RTSP Bridge</Manufacturer>
+  <Model>Driveway</Model>
   <FirmwareVersion>1.0</FirmwareVersion>
   <SerialNumber>1234</SerialNumber>
   <HardwareId>bridge</HardwareId>
@@ -110,6 +112,25 @@ function getUsers() {
     <UserLevel>Administrator</UserLevel>
   </User>
 </GetUsersResponse>`);
+}
+
+function getScopes() {
+  return `
+    <tds:GetScopesResponse>
+      <tds:Scopes>
+        <tt:ScopeDef>Fixed</tt:ScopeDef>
+        <tt:ScopeItem>onvif://www.onvif.org/type/video_encoder</tt:ScopeItem>
+      </tds:Scopes>
+      <tds:Scopes>
+        <tt:ScopeDef>Fixed</tt:ScopeDef>
+        <tt:ScopeItem>onvif://www.onvif.org/Profile/Streaming</tt:ScopeItem>
+      </tds:Scopes>
+      <tds:Scopes>
+        <tt:ScopeDef>Fixed</tt:ScopeDef>
+        <tt:ScopeItem>onvif://www.onvif.org/name/RTSP-Bridge</tt:ScopeItem>
+      </tds:Scopes>
+    </tds:GetScopesResponse>
+  `;
 }
 
 /* ---------------- media responses ---------------- */
@@ -197,28 +218,51 @@ const server = http.createServer((req, res) => {
       return res.end("ONVIF");
     }
 
-    // Auth challenge (allow unauthenticated time check)
-    if (!hasWSSecurity(body) && !body.includes("GetSystemDateAndTime")) {
-      return challenge(res);
-    }
-
     /* ---- Device ---- */
     if (req.url === "/onvif/device_service") {
-      if (body.includes("GetSystemDateAndTime"))
+      if (body.includes("GetSystemDateAndTime")) {
+        console.log("Handling: GetSystemDateAndTime");
         return soap(res, getSystemDateAndTime());
-      if (body.includes("GetServices")) return soap(res, getServices());
-      if (body.includes("GetCapabilities")) return soap(res, getCapabilities());
-      if (body.includes("GetDeviceInformation"))
+      }
+      if (body.includes("GetServices")) {
+        console.log("Handling: GetServices");
+        return soap(res, getServices());
+      }
+      if (body.includes("GetCapabilities")) {
+        console.log("Handling: GetCapabilities");
+        return soap(res, getCapabilities());
+      }
+      if (body.includes("GetDeviceInformation")) {
+        console.log("Handling: GetDeviceInformation");
         return soap(res, getDeviceInformation());
-      if (body.includes("GetUsers")) return soap(res, getUsers());
+      }
+      if (body.includes("GetUsers")) {
+        console.log("Handling: GetUsers");
+        return soap(res, getUsers());
+      }
+      if (body.includes("GetScopes")) {
+        console.log("Handling: GetScopes");
+        return soap(res, getScopes());
+      }
     }
-
     /* ---- Media ---- */
     if (req.url === "/onvif/media_service") {
-      if (body.includes("GetProfiles")) return soap(res, getProfiles());
-      if (body.includes("GetVideoSources")) return soap(res, getVideoSources());
-      if (body.includes("GetStreamUri")) return soap(res, getStreamUri());
-      if (body.includes("GetSnapshotUri")) return soap(res, getSnapshotUri());
+      if (body.includes("GetProfiles")) {
+        console.log("Handling: GetProfiles");
+        return soap(res, getProfiles());
+      }
+      if (body.includes("GetVideoSources")) {
+        console.log("Handling: GetVideoSources");
+        return soap(res, getVideoSources());
+      }
+      if (body.includes("GetStreamUri")) {
+        console.log("Handling: GetStreamUri");
+        return soap(res, getStreamUri());
+      }
+      if (body.includes("GetSnapshotUri")) {
+        console.log("Handling: GetSnapshotUri");
+        return soap(res, getSnapshotUri());
+      }
     }
 
     res.writeHead(500);
@@ -226,6 +270,8 @@ const server = http.createServer((req, res) => {
   });
 });
 
-server.listen(PORT, () => {
+setupWSDiscovery();
+
+server.listen(PORT, "0.0.0.0", () => {
   console.log(`ONVIF server listening on :${PORT}`);
 });

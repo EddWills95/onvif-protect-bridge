@@ -1,11 +1,16 @@
 // ws-discovery.js
 import dgram from "dgram";
+import { DEVICE_UUID } from "./deviceIdentity.js";
+import { getLocalIPv4 } from "./getLocalIPv4.js";
 
 const MULTICAST_ADDR = "239.255.255.250";
 const PORT = 3702;
 
 // change this to your actual reachable IP
-const DEVICE_XADDR = "http://192.168.1.66:8000/onvif/device_service";
+const ip = getLocalIPv4();
+const DEVICE_XADDR = `http://${ip}:8000/onvif/device_service`;
+
+console.log("Using local IP for WS-Discovery:", ip);
 
 const socket = dgram.createSocket({ type: "udp4", reuseAddr: true });
 
@@ -19,7 +24,7 @@ socket.on("message", (msg, rinfo) => {
 
   if (!xml.includes("Probe")) return;
 
-  console.log("Probe received from", rinfo, msg.toString());
+  console.log("Probe received from", rinfo, xml);
 
   // extract wsa:MessageID (works for Protect’s probe)
   const messageIdMatch = xml.match(
@@ -40,7 +45,7 @@ socket.on("message", (msg, rinfo) => {
             xmlns:d="http://schemas.xmlsoap.org/ws/2005/04/discovery"
             xmlns:dn="http://www.onvif.org/ver10/network/wsdl">
   <e:Header>
-    <w:MessageID>uuid:${crypto.randomUUID()}</w:MessageID>
+    <w:MessageID>uuid:${DEVICE_UUID}</w:MessageID>
     <w:RelatesTo>${relatesTo}</w:RelatesTo>
     <w:To>http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</w:To>
     <w:Action>http://schemas.xmlsoap.org/ws/2005/04/discovery/ProbeMatches</w:Action>
@@ -49,7 +54,7 @@ socket.on("message", (msg, rinfo) => {
     <d:ProbeMatches>
       <d:ProbeMatch>
         <w:EndpointReference>
-          <w:Address>urn:uuid:${crypto.randomUUID()}</w:Address>
+          <w:Address>urn:uuid:${DEVICE_UUID}</w:Address>
         </w:EndpointReference>
         <d:Types>dn:NetworkVideoTransmitter</d:Types>
         <d:Scopes>onvif://www.onvif.org/Profile/Streaming</d:Scopes>
