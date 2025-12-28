@@ -1,9 +1,22 @@
 import http from "http";
 import { getLocalIPv4 } from "./utils/getLocalIPv4";
+import { soap } from "./utils/soap";
 import { setupWSDiscovery } from "../ws-discovery";
 import { Camera } from "./domain/Camera";
 
-// const HOST = "192.168.1.66";
+// Device services
+import { getSystemDateAndTime } from "./services/device/getSystemDateAndTime";
+import { getServices } from "./services/device/getServices";
+import { getCapabilities } from "./services/device/getCapabilities";
+import { getDeviceInformation } from "./services/device/getDeviceInformation";
+import { getUsers } from "./services/device/getUsers";
+import { getScopes } from "./services/device/getScopes";
+
+// Media services
+import { getProfiles } from "./services/media/getProfiles";
+import { getVideoSources } from "./services/media/getVideoSources";
+import { getStreamUri } from "./services/media/getStreamUri";
+import { getSnapshotUri } from "./services/media/getSnapshotUri";
 
 /* ---------------- Camera ---------------- */
 
@@ -14,197 +27,8 @@ const camera = new Camera({
 });
 
 const PORT = 8000;
-const RTSP_URI = camera.rtspUri(getLocalIPv4(), 8554);
-
-/* ---------------- helpers ---------------- */
-
-function soap(res: http.ServerResponse, xml: string): void {
-  res.writeHead(200, { "Content-Type": "application/soap+xml" });
-  res.end(xml);
-}
-
-// function challenge(res: http.ServerResponse): void {
-//   res.writeHead(401, {
-//     "WWW-Authenticate":
-//       'Digest realm="ONVIF", qop="auth", nonce="dummy", opaque="dummy"',
-//   });
-//   res.end();
-// }
-
-function envelope(body: string): string {
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope">
-  <s:Body>
-    ${body}
-  </s:Body>
-</s:Envelope>`;
-}
-
-/* ---------------- device responses ---------------- */
-
-function getSystemDateAndTime() {
-  const now = new Date();
-
-  return envelope(`
-<GetSystemDateAndTimeResponse xmlns="http://www.onvif.org/ver10/device/wsdl">
-  <SystemDateAndTime>
-    <UTCDateTime>
-      <Time><Hour>${now.getUTCHours()}</Hour><Minute>${now.getUTCMinutes()}</Minute><Second>${now.getUTCSeconds()}</Second></Time>
-      <Date><Year>${now.getUTCFullYear()}</Year><Month>${
-    now.getUTCMonth() + 1
-  }</Month><Day>${now.getUTCDate()}</Day></Date>
-    </UTCDateTime>
-  </SystemDateAndTime>
-</GetSystemDateAndTimeResponse>`);
-}
-
-function getServices() {
-  return envelope(`
-<GetServicesResponse xmlns="http://www.onvif.org/ver10/device/wsdl">
-  <Service>
-    <Namespace>http://www.onvif.org/ver10/media/wsdl</Namespace>
-    <XAddr>http://${getLocalIPv4()}:${PORT}/onvif/media_service</XAddr>
-    <Version>
-      <Major>2</Major>
-      <Minor>0</Minor>
-    </Version>
-    <Capabilities>
-      <StreamingCapabilities>
-        <RTPMulticast>false</RTPMulticast>
-        <RTP_TCP>true</RTP_TCP>
-        <RTP_RTSP_TCP>true</RTP_RTSP_TCP>
-      </StreamingCapabilities>
-    </Capabilities>
-  </Service>
-
-  <Service>
-    <Namespace>http://www.onvif.org/ver10/media/wsdl</Namespace>
-    <XAddr>http://${getLocalIPv4()}:${PORT}/onvif/media_service</XAddr>
-    <Version><Major>2</Major><Minor>0</Minor></Version>
-  </Service>
-</GetServicesResponse>`);
-}
-
-function getCapabilities() {
-  return envelope(`
-<GetCapabilitiesResponse xmlns="http://www.onvif.org/ver10/device/wsdl">
-  <Capabilities>
-    <Device>
-      <XAddr>http://${getLocalIPv4()}:${PORT}/onvif/device_service</XAddr>
-      <UserManagement>true</UserManagement>
-      <Security>
-        <UsernameToken>true</UsernameToken>
-      </Security>
-    </Device>
-    <Media>
-      <XAddr>http://${getLocalIPv4()}:${PORT}/onvif/media_service</XAddr>
-    </Media>
-  </Capabilities>
-</GetCapabilitiesResponse>`);
-}
-
-function getDeviceInformation() {
-  return envelope(`
-<GetDeviceInformationResponse xmlns="http://www.onvif.org/ver10/device/wsdl">
-  <Manufacturer>RTSP Bridge</Manufacturer>
-  <Model>Driveway</Model>
-  <FirmwareVersion>1.0</FirmwareVersion>
-  <SerialNumber>1234</SerialNumber>
-  <HardwareId>bridge</HardwareId>
-</GetDeviceInformationResponse>`);
-}
-
-function getUsers() {
-  return envelope(`
-<GetUsersResponse xmlns="http://www.onvif.org/ver10/device/wsdl">
-  <User>
-    <Username>admin</Username>
-    <UserLevel>Administrator</UserLevel>
-  </User>
-</GetUsersResponse>`);
-}
-
-function getScopes() {
-  return `
-    <tds:GetScopesResponse>
-      <tds:Scopes>
-        <tt:ScopeDef>Fixed</tt:ScopeDef>
-        <tt:ScopeItem>onvif://www.onvif.org/type/video_encoder</tt:ScopeItem>
-      </tds:Scopes>
-      <tds:Scopes>
-        <tt:ScopeDef>Fixed</tt:ScopeDef>
-        <tt:ScopeItem>onvif://www.onvif.org/Profile/Streaming</tt:ScopeItem>
-      </tds:Scopes>
-      <tds:Scopes>
-        <tt:ScopeDef>Fixed</tt:ScopeDef>
-        <tt:ScopeItem>onvif://www.onvif.org/name/RTSP-Bridge</tt:ScopeItem>
-      </tds:Scopes>
-    </tds:GetScopesResponse>
-  `;
-}
-
-/* ---------------- media responses ---------------- */
-
-function getProfiles() {
-  return envelope(`
-<GetProfilesResponse xmlns="http://www.onvif.org/ver10/media/wsdl">
-  <Profiles token=${camera.profileToken}>
-    <Name>${camera.name}</Name>
-
-    <VideoSourceConfiguration token="vsc_1">
-      <Name>VideoSource</Name>
-      <SourceToken>vs_1</SourceToken>
-      <Bounds x="0" y="0" width="704" height="576"/>
-    </VideoSourceConfiguration>
-
-    <VideoEncoderConfiguration token="vec_1">
-      <Name>H264</Name>
-      <Encoding>H264</Encoding>
-      <Resolution>
-        <Width>704</Width>
-        <Height>576</Height>
-      </Resolution>
-      <RateControl>
-        <FrameRateLimit>25</FrameRateLimit>
-        <EncodingInterval>1</EncodingInterval>
-        <BitrateLimit>2048</BitrateLimit>
-      </RateControl>
-      <H264>
-        <GovLength>50</GovLength>
-        <H264Profile>Baseline</H264Profile>
-      </H264>
-    </VideoEncoderConfiguration>
-  </Profiles>
-</GetProfilesResponse>`);
-}
-
-function getVideoSources() {
-  return envelope(`
-<GetVideoSourcesResponse xmlns="http://www.onvif.org/ver10/media/wsdl">
-  <VideoSources token="vs_1"/>
-</GetVideoSourcesResponse>`);
-}
-
-function getStreamUri() {
-  return envelope(`
-<GetStreamUriResponse xmlns="http://www.onvif.org/ver10/media/wsdl">
-  <MediaUri>
-    <Uri>${RTSP_URI}</Uri>
-    <InvalidAfterConnect>false</InvalidAfterConnect>
-    <InvalidAfterReboot>false</InvalidAfterReboot>
-    <Timeout>PT60S</Timeout>
-  </MediaUri>
-</GetStreamUriResponse>`);
-}
-
-function getSnapshotUri() {
-  return envelope(`
-<GetSnapshotUriResponse xmlns="http://www.onvif.org/ver10/media/wsdl">
-  <MediaUri>
-    <Uri>${RTSP_URI}</Uri>
-  </MediaUri>
-</GetSnapshotUriResponse>`);
-}
+const RTSP_PORT = 8554;
+const HOST = getLocalIPv4();
 
 /* ---------------- server ---------------- */
 
@@ -236,11 +60,11 @@ const server = http.createServer((req, res) => {
       }
       if (body.includes("GetServices")) {
         console.log("Handling: GetServices");
-        return soap(res, getServices());
+        return soap(res, getServices({ host: HOST, port: PORT }));
       }
       if (body.includes("GetCapabilities")) {
         console.log("Handling: GetCapabilities");
-        return soap(res, getCapabilities());
+        return soap(res, getCapabilities({ host: HOST, port: PORT }));
       }
       if (body.includes("GetDeviceInformation")) {
         console.log("Handling: GetDeviceInformation");
@@ -259,7 +83,7 @@ const server = http.createServer((req, res) => {
     if (req.url === "/onvif/media_service") {
       if (body.includes("GetProfiles")) {
         console.log("Handling: GetProfiles");
-        return soap(res, getProfiles());
+        return soap(res, getProfiles({ camera }));
       }
       if (body.includes("GetVideoSources")) {
         console.log("Handling: GetVideoSources");
@@ -267,11 +91,17 @@ const server = http.createServer((req, res) => {
       }
       if (body.includes("GetStreamUri")) {
         console.log("Handling: GetStreamUri");
-        return soap(res, getStreamUri());
+        return soap(
+          res,
+          getStreamUri({ camera, host: HOST, rtspPort: RTSP_PORT })
+        );
       }
       if (body.includes("GetSnapshotUri")) {
         console.log("Handling: GetSnapshotUri");
-        return soap(res, getSnapshotUri());
+        return soap(
+          res,
+          getSnapshotUri({ camera, host: HOST, rtspPort: RTSP_PORT })
+        );
       }
     }
 
