@@ -11,5 +11,5 @@ export function getLocalIPv4() {
     }
   }
 
-  return null;
+  throw new Error("No local IPv4 address found");
 }

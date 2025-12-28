@@ -1,10 +1,20 @@
 import http from "http";
 import { getLocalIPv4 } from "./utils/getLocalIPv4";
 import { setupWSDiscovery } from "../ws-discovery";
+import { Camera } from "./domain/Camera";
 
 // const HOST = "192.168.1.66";
+
+/* ---------------- Camera ---------------- */
+
+const camera = new Camera({
+  id: "cam7",
+  name: "Camera 7",
+  restreamPath: "/cam7",
+});
+
 const PORT = 8000;
-const RTSP_URI = `rtsp://${getLocalIPv4()}:8554/cam7`;
+const RTSP_URI = camera.rtspUri(getLocalIPv4(), 8554);
 
 /* ---------------- helpers ---------------- */
 
@@ -13,13 +23,13 @@ function soap(res: http.ServerResponse, xml: string): void {
   res.end(xml);
 }
 
-function challenge(res: http.ServerResponse): void {
-  res.writeHead(401, {
-    "WWW-Authenticate":
-      'Digest realm="ONVIF", qop="auth", nonce="dummy", opaque="dummy"',
-  });
-  res.end();
-}
+// function challenge(res: http.ServerResponse): void {
+//   res.writeHead(401, {
+//     "WWW-Authenticate":
+//       'Digest realm="ONVIF", qop="auth", nonce="dummy", opaque="dummy"',
+//   });
+//   res.end();
+// }
 
 function envelope(body: string): string {
   return `<?xml version="1.0" encoding="UTF-8"?>
@@ -138,8 +148,8 @@ function getScopes() {
 function getProfiles() {
   return envelope(`
 <GetProfilesResponse xmlns="http://www.onvif.org/ver10/media/wsdl">
-  <Profiles token="profile_1">
-    <Name>MainStream</Name>
+  <Profiles token=${camera.profileToken}>
+    <Name>${camera.name}</Name>
 
     <VideoSourceConfiguration token="vsc_1">
       <Name>VideoSource</Name>
