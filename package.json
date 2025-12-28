@@ -1,13 +1,17 @@
 {
   "name": "onvif-rtsp-proxy",
-  "type": "module",
   "private": true,
   "scripts": {
-    "start": "node server.js"
+    "dev": "ts-node src/server.ts"
   },
   "dependencies": {
     "dotenv": "^17.2.3",
     "express": "^4.19.2",
     "soap": "^1.1.10"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.3",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
   }
 }

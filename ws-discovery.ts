@@ -1,7 +1,7 @@
 // ws-discovery.js
 import dgram from "dgram";
-import { DEVICE_UUID } from "./deviceIdentity.js";
-import { getLocalIPv4 } from "./getLocalIPv4.js";
+import { DEVICE_UUID } from "./src/utils/deviceIdentity";
+import { getLocalIPv4 } from "./src/utils/getLocalIPv4";
 
 const MULTICAST_ADDR = "239.255.255.250";
 const PORT = 3702;

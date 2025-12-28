@@ -1,6 +1,6 @@
 import http from "http";
-import { getLocalIPv4 } from "./getLocalIPv4.js";
-import { setupWSDiscovery } from "./ws-discovery.js";
+import { getLocalIPv4 } from "./utils/getLocalIPv4";
+import { setupWSDiscovery } from "../ws-discovery";
 
 // const HOST = "192.168.1.66";
 const PORT = 8000;
@@ -8,12 +8,12 @@ const RTSP_URI = `rtsp://${getLocalIPv4()}:8554/cam7`;
 
 /* ---------------- helpers ---------------- */
 
-function soap(res, xml) {
+function soap(res: http.ServerResponse, xml: string): void {
   res.writeHead(200, { "Content-Type": "application/soap+xml" });
   res.end(xml);
 }
 
-function challenge(res) {
+function challenge(res: http.ServerResponse): void {
   res.writeHead(401, {
     "WWW-Authenticate":
       'Digest realm="ONVIF", qop="auth", nonce="dummy", opaque="dummy"',
@@ -21,7 +21,7 @@ function challenge(res) {
   res.end();
 }
 
-function envelope(body) {
+function envelope(body: string): string {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope">
   <s:Body>
@@ -80,14 +80,14 @@ function getCapabilities() {
 <GetCapabilitiesResponse xmlns="http://www.onvif.org/ver10/device/wsdl">
   <Capabilities>
     <Device>
-      <XAddr>http://${HOST}:${PORT}/onvif/device_service</XAddr>
+      <XAddr>http://${getLocalIPv4()}:${PORT}/onvif/device_service</XAddr>
       <UserManagement>true</UserManagement>
       <Security>
         <UsernameToken>true</UsernameToken>
       </Security>
     </Device>
     <Media>
-      <XAddr>http://${HOST}:${PORT}/onvif/media_service</XAddr>
+      <XAddr>http://${getLocalIPv4()}:${PORT}/onvif/media_service</XAddr>
     </Media>
   </Capabilities>
 </GetCapabilitiesResponse>`);
