@@ -1,6 +1,6 @@
-import http from "http";
+import { Hono } from "hono";
+import { serve } from "@hono/node-server";
 import { getLocalIPv4 } from "./utils/getLocalIPv4";
-import { soap } from "./utils/soap";
 import { setupWSDiscovery } from "../ws-discovery";
 import { Camera } from "./domain/Camera";
 
@@ -25,9 +25,9 @@ const cameraName = process.env.CAMERA_NAME || "Camera 1";
 const cameraRestreamPath = process.env.CAMERA_RESTREAM_PATH || "/cam1";
 
 // Port listening for ONVIP requests
-const PORT = process.env.ONVIF_PORT || 8000;
+const PORT = Number(process.env.ONVIF_PORT) || 8000;
 // Port for restreamed RTSP
-const RTSP_PORT = process.env.RTSP_STREAM_PORT || 8554;
+const RTSP_PORT = Number(process.env.RTSP_STREAM_PORT) || 8554;
 
 // Host IP (to declare in ONVIF responses)
 const HOST = process.env.HOST_IP || getLocalIPv4();
@@ -42,86 +42,123 @@ const camera = new Camera({
 
 /* ---------------- server ---------------- */
 
-const server = http.createServer((req, res) => {
-  let body = "";
+const app = new Hono();
 
-  req.on("data", (c) => {
-    body += c;
-  });
+// Logging middleware
+app.use("*", async (c, next) => {
+  console.log("---- ONVIF REQUEST ----");
+  console.log(c.req.method, c.req.path);
+  await next();
+  console.log("-----------------------");
+});
 
-  req.on("end", () => {
-    console.log("---- ONVIF REQUEST ----");
-    console.log(req.method, req.url);
-    console.log(body);
-    console.log(body.includes("<Security") ? "AUTH: yes" : "AUTH: no");
-    console.log("-----------------------");
+// GET requests are not supported
+app.get("*", (c) => {
+  return c.text("GET unsupported by ONVIF implementation", 200);
+});
 
-    // Ignore GET probes
-    if (req.method !== "POST") {
-      res.writeHead(200);
-      return res.end("GET unsupported by ONVIF implementation");
-    }
+// Device Service endpoint
+app.post("/onvif/device_service", async (c) => {
+  const body = await c.req.text();
+  console.log(body);
+  console.log(body.includes("<Security") ? "AUTH: yes" : "AUTH: no");
 
-    /* ---- Device ---- */
-    if (req.url === "/onvif/device_service") {
-      if (body.includes("GetSystemDateAndTime")) {
-        console.log("Handling: GetSystemDateAndTime");
-        return soap(res, getSystemDateAndTime());
-      }
-      if (body.includes("GetServices")) {
-        console.log("Handling: GetServices");
-        return soap(res, getServices({ host: HOST, port: PORT }));
-      }
-      if (body.includes("GetCapabilities")) {
-        console.log("Handling: GetCapabilities");
-        return soap(res, getCapabilities({ host: HOST, port: PORT }));
-      }
-      if (body.includes("GetDeviceInformation")) {
-        console.log("Handling: GetDeviceInformation");
-        return soap(res, getDeviceInformation());
-      }
-      if (body.includes("GetUsers")) {
-        console.log("Handling: GetUsers");
-        return soap(res, getUsers());
-      }
-      if (body.includes("GetScopes")) {
-        console.log("Handling: GetScopes");
-        return soap(res, getScopes());
-      }
-    }
-    /* ---- Media ---- */
-    if (req.url === "/onvif/media_service") {
-      if (body.includes("GetProfiles")) {
-        console.log("Handling: GetProfiles");
-        return soap(res, getProfiles({ camera }));
-      }
-      if (body.includes("GetVideoSources")) {
-        console.log("Handling: GetVideoSources");
-        return soap(res, getVideoSources());
-      }
-      if (body.includes("GetStreamUri")) {
-        console.log("Handling: GetStreamUri");
-        return soap(
-          res,
-          getStreamUri({ camera, host: HOST, rtspPort: RTSP_PORT })
-        );
-      }
-      if (body.includes("GetSnapshotUri")) {
-        console.log("Handling: GetSnapshotUri");
-        return soap(
-          res,
-          getSnapshotUri({ camera, host: HOST, rtspPort: RTSP_PORT })
-        );
-      }
-    }
+  if (body.includes("GetSystemDateAndTime")) {
+    console.log("Handling: GetSystemDateAndTime");
+    return c.body(getSystemDateAndTime(), 200, {
+      "Content-Type": "application/soap+xml",
+    });
+  }
 
-    res.writeHead(500);
-    res.end("Unsupported ONVIF call");
-  });
+  if (body.includes("GetServices")) {
+    console.log("Handling: GetServices");
+    return c.body(getServices({ host: HOST, port: PORT }), 200, {
+      "Content-Type": "application/soap+xml",
+    });
+  }
+
+  if (body.includes("GetCapabilities")) {
+    console.log("Handling: GetCapabilities");
+    return c.body(getCapabilities({ host: HOST, port: PORT }), 200, {
+      "Content-Type": "application/soap+xml",
+    });
+  }
+
+  if (body.includes("GetDeviceInformation")) {
+    console.log("Handling: GetDeviceInformation");
+    return c.body(getDeviceInformation(), 200, {
+      "Content-Type": "application/soap+xml",
+    });
+  }
+
+  if (body.includes("GetUsers")) {
+    console.log("Handling: GetUsers");
+    return c.body(getUsers(), 200, {
+      "Content-Type": "application/soap+xml",
+    });
+  }
+
+  if (body.includes("GetScopes")) {
+    console.log("Handling: GetScopes");
+    return c.body(getScopes(), 200, {
+      "Content-Type": "application/soap+xml",
+    });
+  }
+
+  return c.text("Unsupported ONVIF call", 500);
+});
+
+// Media Service endpoint
+app.post("/onvif/media_service", async (c) => {
+  const body = await c.req.text();
+  console.log(body);
+  console.log(body.includes("<Security") ? "AUTH: yes" : "AUTH: no");
+
+  if (body.includes("GetProfiles")) {
+    console.log("Handling: GetProfiles");
+    return c.body(getProfiles({ camera }), 200, {
+      "Content-Type": "application/soap+xml",
+    });
+  }
+
+  if (body.includes("GetVideoSources")) {
+    console.log("Handling: GetVideoSources");
+    return c.body(getVideoSources(), 200, {
+      "Content-Type": "application/soap+xml",
+    });
+  }
+
+  if (body.includes("GetStreamUri")) {
+    console.log("Handling: GetStreamUri");
+    return c.body(
+      getStreamUri({ camera, host: HOST, rtspPort: RTSP_PORT }),
+      200,
+      {
+        "Content-Type": "application/soap+xml",
+      }
+    );
+  }
+
+  if (body.includes("GetSnapshotUri")) {
+    console.log("Handling: GetSnapshotUri");
+    return c.body(
+      getSnapshotUri({ camera, host: HOST, rtspPort: RTSP_PORT }),
+      200,
+      {
+        "Content-Type": "application/soap+xml",
+      }
+    );
+  }
+
+  return c.text("Unsupported ONVIF call", 500);
 });
 
 setupWSDiscovery();
 
-server.listen(PORT, "0.0.0.0", () => {
-  console.log(`ONVIF server listening on :${PORT}`);
+serve({
+  fetch: app.fetch,
+  port: PORT,
+  hostname: "0.0.0.0",
 });
+
+console.log(`ONVIF server listening on :${PORT}`);
