@@ -1,11 +1,12 @@
 import { Hono } from "hono";
 import { serve } from "@hono/node-server";
-import { extractSoapAction, hasSecurity } from "./utils/soapParser";
 import { WSDiscoveryServer } from "../ws-discovery";
 import { Camera } from "./domain/Camera";
 import { DeviceController } from "./controllers/DeviceController";
 import { MediaController } from "./controllers/MediaController";
 import { Config } from "./config/Config";
+import { createDeviceRoutes } from "./routes/device.routes";
+import { createMediaRoutes } from "./routes/media.routes";
 
 /* ----------------- Config ------------------ */
 
@@ -58,47 +59,13 @@ app.get("/health", (c) => {
   });
 });
 
+// Mount ONVIF service routes
+app.route("/onvif/device_service", createDeviceRoutes(deviceController));
+app.route("/onvif/media_service", createMediaRoutes(mediaController));
+
 // GET requests are not supported
 app.get("*", (c) => {
   return c.text("GET unsupported by ONVIF implementation", 200);
-});
-
-// Device Service endpoint
-app.post("/onvif/device_service", async (c) => {
-  const body = await c.req.text();
-  console.log(body);
-  console.log(hasSecurity(body) ? "AUTH: yes" : "AUTH: no");
-
-  const action = extractSoapAction(body);
-  if (!action) {
-    return c.text("Invalid SOAP request - no action found", 400);
-  }
-
-  const response = deviceController.handle(action, c);
-  if (!response) {
-    return c.text(`Unsupported Device action: ${action}`, 500);
-  }
-
-  return response;
-});
-
-// Media Service endpoint
-app.post("/onvif/media_service", async (c) => {
-  const body = await c.req.text();
-  console.log(body);
-  console.log(hasSecurity(body) ? "AUTH: yes" : "AUTH: no");
-
-  const action = extractSoapAction(body);
-  if (!action) {
-    return c.text("Invalid SOAP request - no action found", 400);
-  }
-
-  const response = mediaController.handle(action, c);
-  if (!response) {
-    return c.text(`Unsupported Media action: ${action}`, 500);
-  }
-
-  return response;
 });
 
 // Initialize and start WS-Discovery
