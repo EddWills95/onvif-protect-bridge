@@ -1,22 +1,11 @@
 import { Hono } from "hono";
 import { serve } from "@hono/node-server";
 import { getLocalIPv4 } from "./utils/getLocalIPv4";
+import { extractSoapAction, hasSecurity } from "./utils/soapParser";
 import { setupWSDiscovery } from "../ws-discovery";
 import { Camera } from "./domain/Camera";
-
-// Device services
-import { getSystemDateAndTime } from "./services/device/getSystemDateAndTime";
-import { getServices } from "./services/device/getServices";
-import { getCapabilities } from "./services/device/getCapabilities";
-import { getDeviceInformation } from "./services/device/getDeviceInformation";
-import { getUsers } from "./services/device/getUsers";
-import { getScopes } from "./services/device/getScopes";
-
-// Media services
-import { getProfiles } from "./services/media/getProfiles";
-import { getVideoSources } from "./services/media/getVideoSources";
-import { getStreamUri } from "./services/media/getStreamUri";
-import { getSnapshotUri } from "./services/media/getSnapshotUri";
+import { DeviceController } from "./controllers/DeviceController";
+import { MediaController } from "./controllers/MediaController";
 
 /* ----------------- Env ------------------ */
 
@@ -44,6 +33,14 @@ const camera = new Camera({
 
 const app = new Hono();
 
+// Initialize controllers
+const deviceController = new DeviceController({ host: HOST, port: PORT });
+const mediaController = new MediaController({
+  camera,
+  host: HOST,
+  rtspPort: RTSP_PORT,
+});
+
 // Logging middleware
 app.use("*", async (c, next) => {
   console.log("---- ONVIF REQUEST ----");
@@ -61,104 +58,42 @@ app.get("*", (c) => {
 app.post("/onvif/device_service", async (c) => {
   const body = await c.req.text();
   console.log(body);
-  console.log(body.includes("<Security") ? "AUTH: yes" : "AUTH: no");
+  console.log(hasSecurity(body) ? "AUTH: yes" : "AUTH: no");
 
-  if (body.includes("GetSystemDateAndTime")) {
-    console.log("Handling: GetSystemDateAndTime");
-    return c.body(getSystemDateAndTime(), 200, {
-      "Content-Type": "application/soap+xml",
-    });
+  const action = extractSoapAction(body);
+  if (!action) {
+    return c.text("Invalid SOAP request - no action found", 400);
   }
 
-  if (body.includes("GetServices")) {
-    console.log("Handling: GetServices");
-    return c.body(getServices({ host: HOST, port: PORT }), 200, {
-      "Content-Type": "application/soap+xml",
-    });
+  const response = deviceController.handle(action, c);
+  if (!response) {
+    return c.text(`Unsupported Device action: ${action}`, 500);
   }
 
-  if (body.includes("GetCapabilities")) {
-    console.log("Handling: GetCapabilities");
-    return c.body(getCapabilities({ host: HOST, port: PORT }), 200, {
-      "Content-Type": "application/soap+xml",
-    });
-  }
-
-  if (body.includes("GetDeviceInformation")) {
-    console.log("Handling: GetDeviceInformation");
-    return c.body(getDeviceInformation(), 200, {
-      "Content-Type": "application/soap+xml",
-    });
-  }
-
-  if (body.includes("GetUsers")) {
-    console.log("Handling: GetUsers");
-    return c.body(getUsers(), 200, {
-      "Content-Type": "application/soap+xml",
-    });
-  }
-
-  if (body.includes("GetScopes")) {
-    console.log("Handling: GetScopes");
-    return c.body(getScopes(), 200, {
-      "Content-Type": "application/soap+xml",
-    });
-  }
-
-  return c.text("Unsupported ONVIF call", 500);
+  return response;
 });
 
 // Media Service endpoint
 app.post("/onvif/media_service", async (c) => {
   const body = await c.req.text();
   console.log(body);
-  console.log(body.includes("<Security") ? "AUTH: yes" : "AUTH: no");
+  console.log(hasSecurity(body) ? "AUTH: yes" : "AUTH: no");
 
-  if (body.includes("GetProfiles")) {
-    console.log("Handling: GetProfiles");
-    return c.body(getProfiles({ camera }), 200, {
-      "Content-Type": "application/soap+xml",
-    });
+  const action = extractSoapAction(body);
+  if (!action) {
+    return c.text("Invalid SOAP request - no action found", 400);
   }
 
-  if (body.includes("GetVideoSources")) {
-    console.log("Handling: GetVideoSources");
-    return c.body(getVideoSources(), 200, {
-      "Content-Type": "application/soap+xml",
-    });
+  const response = mediaController.handle(action, c);
+  if (!response) {
+    return c.text(`Unsupported Media action: ${action}`, 500);
   }
 
-  if (body.includes("GetStreamUri")) {
-    console.log("Handling: GetStreamUri");
-    return c.body(
-      getStreamUri({ camera, host: HOST, rtspPort: RTSP_PORT }),
-      200,
-      {
-        "Content-Type": "application/soap+xml",
-      }
-    );
-  }
-
-  if (body.includes("GetSnapshotUri")) {
-    console.log("Handling: GetSnapshotUri");
-    return c.body(
-      getSnapshotUri({ camera, host: HOST, rtspPort: RTSP_PORT }),
-      200,
-      {
-        "Content-Type": "application/soap+xml",
-      }
-    );
-  }
-
-  return c.text("Unsupported ONVIF call", 500);
+  return response;
 });
 
 setupWSDiscovery();
 
-serve({
-  fetch: app.fetch,
-  port: PORT,
-  hostname: "0.0.0.0",
-});
+serve(app);
 
 console.log(`ONVIF server listening on :${PORT}`);
