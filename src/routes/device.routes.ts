@@ -1,21 +1,21 @@
 import { Hono } from "hono";
-import { DeviceController } from "../controllers/DeviceController";
-import { extractSoapAction, hasSecurity } from "../utils/soapParser";
+import type { DeviceController } from "../controllers/DeviceController";
+import { soapMiddleware } from "../middleware/soap.middleware";
 
-export function createDeviceRoutes(controller: DeviceController): Hono {
-  const router = new Hono();
+type Variables = {
+  soapAction: string;
+  soapBody: string;
+};
 
-  router.post("/", async (c) => {
-    const body = await c.req.text();
-    console.log(body);
-    console.log(hasSecurity(body) ? "AUTH: yes" : "AUTH: no");
+export function createDeviceRoutes(
+  controller: DeviceController
+): Hono<{ Variables: Variables }> {
+  const router = new Hono<{ Variables: Variables }>();
 
-    const action = extractSoapAction(body);
-    if (!action) {
-      return c.text("Invalid SOAP request - no action found", 400);
-    }
-
+  router.post("/", soapMiddleware, (c) => {
+    const action = c.get("soapAction") as string;
     const response = controller.handle(action, c);
+
     if (!response) {
       return c.text(`Unsupported Device action: ${action}`, 500);
     }
