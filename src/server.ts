@@ -18,17 +18,27 @@ import { getVideoSources } from "./services/media/getVideoSources";
 import { getStreamUri } from "./services/media/getStreamUri";
 import { getSnapshotUri } from "./services/media/getSnapshotUri";
 
+/* ----------------- Env ------------------ */
+
+const cameraId = process.env.CAMERA_ID || "cam1";
+const cameraName = process.env.CAMERA_NAME || "Camera 1";
+const cameraRestreamPath = process.env.CAMERA_RESTREAM_PATH || "/cam1";
+
+// Port listening for ONVIP requests
+const PORT = process.env.ONVIF_PORT || 8000;
+// Port for restreamed RTSP
+const RTSP_PORT = process.env.RTSP_STREAM_PORT || 8554;
+
+// Host IP (to declare in ONVIF responses)
+const HOST = process.env.HOST_IP || getLocalIPv4();
+
 /* ---------------- Camera ---------------- */
 
 const camera = new Camera({
-  id: "cam7",
-  name: "Camera 7",
-  restreamPath: "/cam7",
+  id: cameraId,
+  name: cameraName,
+  restreamPath: cameraRestreamPath,
 });
-
-const PORT = 8000;
-const RTSP_PORT = 8554;
-const HOST = getLocalIPv4();
 
 /* ---------------- server ---------------- */
 
@@ -46,10 +56,10 @@ const server = http.createServer((req, res) => {
     console.log(body.includes("<Security") ? "AUTH: yes" : "AUTH: no");
     console.log("-----------------------");
 
-    // Allow GET probes
+    // Ignore GET probes
     if (req.method !== "POST") {
       res.writeHead(200);
-      return res.end("ONVIF");
+      return res.end("GET unsupported by ONVIF implementation");
     }
 
     /* ---- Device ---- */
