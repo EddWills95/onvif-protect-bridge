@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { serve } from "@hono/node-server";
 import { getLocalIPv4 } from "./utils/getLocalIPv4";
 import { extractSoapAction, hasSecurity } from "./utils/soapParser";
-import { setupWSDiscovery } from "../ws-discovery";
+import { WSDiscoveryServer } from "../ws-discovery";
 import { Camera } from "./domain/Camera";
 import { DeviceController } from "./controllers/DeviceController";
 import { MediaController } from "./controllers/MediaController";
@@ -92,8 +92,14 @@ app.post("/onvif/media_service", async (c) => {
   return response;
 });
 
-setupWSDiscovery();
+// Initialize and start WS-Discovery
+const wsDiscovery = new WSDiscoveryServer(camera, PORT, HOST);
+wsDiscovery.start();
 
-serve(app);
+serve({
+  fetch: app.fetch,
+  port: PORT,
+  hostname: "0.0.0.0",
+});
 
 console.log(`ONVIF server listening on :${PORT}`);

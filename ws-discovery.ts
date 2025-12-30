@@ -1,51 +1,74 @@
-// ws-discovery.js
 import dgram from "dgram";
-import { DEVICE_UUID } from "./src/utils/deviceIdentity";
-import { getLocalIPv4 } from "./src/utils/getLocalIPv4";
+import { Camera } from "./src/domain/Camera";
 
-const MULTICAST_ADDR = "239.255.255.250";
-const PORT = 3702;
+export class WSDiscoveryServer {
+  private socket: dgram.Socket;
+  private readonly camera: Camera;
+  private readonly deviceXAddr: string;
+  private readonly multicastAddr = "239.255.255.250";
+  private readonly discoveryPort = 3702;
+  private readonly hostIp: string;
 
-// change this to your actual reachable IP
-const ip = getLocalIPv4();
-const DEVICE_XADDR = `http://${ip}:8000/onvif/device_service`;
+  constructor(camera: Camera, onvifPort: number, hostIp: string) {
+    this.camera = camera;
+    this.hostIp = hostIp;
+    this.deviceXAddr = `http://${hostIp}:${onvifPort}/onvif/device_service`;
+    this.socket = dgram.createSocket({ type: "udp4", reuseAddr: true });
 
-console.log("Using local IP for WS-Discovery:", ip);
-
-const socket = dgram.createSocket({ type: "udp4", reuseAddr: true });
-
-socket.on("listening", () => {
-  socket.addMembership(MULTICAST_ADDR);
-  console.log("WS-Discovery listening on 239.255.255.250:3702");
-});
-
-socket.on("message", (msg, rinfo) => {
-  const xml = msg.toString();
-
-  if (!xml.includes("Probe")) return;
-
-  console.log("Probe received from", rinfo, xml);
-
-  // extract wsa:MessageID (works for Protect’s probe)
-  const messageIdMatch = xml.match(
-    /<wsa:MessageID[^>]*>([^<]+)<\/wsa:MessageID>/
-  );
-
-  if (!messageIdMatch) {
-    console.warn("Probe without MessageID, ignoring");
-    return;
+    this.setupHandlers();
   }
 
-  const relatesTo = messageIdMatch[1];
+  private setupHandlers(): void {
+    this.socket.on("listening", () => {
+      try {
+        this.socket.addMembership(this.multicastAddr);
+        console.log(
+          `WS-Discovery listening on ${this.multicastAddr}:${this.discoveryPort}`
+        );
+        console.log(`Device address: ${this.deviceXAddr}`);
+      } catch (err) {
+        console.error("Failed to setup multicast:", err);
+        console.log(
+          "WS-Discovery will continue without multicast (manual camera config required)"
+        );
+      }
+    });
 
-  const response = `
+    this.socket.on("message", (msg, rinfo) => this.handleProbe(msg, rinfo));
+
+    this.socket.on("error", (err) => {
+      console.error("WS-Discovery socket error:", err);
+    });
+  }
+
+  private handleProbe(msg: Buffer, rinfo: dgram.RemoteInfo): void {
+    const xml = msg.toString();
+
+    if (!xml.includes("Probe")) return;
+
+    console.log(`Probe received from ${rinfo.address}`);
+
+    const messageIdMatch = xml.match(
+      /<wsa:MessageID[^>]*>([^<]+)<\/wsa:MessageID>/
+    );
+    if (!messageIdMatch) {
+      console.warn("Probe without MessageID, ignoring");
+      return;
+    }
+
+    const response = this.buildProbeResponse(messageIdMatch[1]);
+    this.socket.send(response, rinfo.port, rinfo.address);
+  }
+
+  private buildProbeResponse(relatesTo: string): string {
+    return `
 <?xml version="1.0" encoding="UTF-8"?>
 <e:Envelope xmlns:e="http://www.w3.org/2003/05/soap-envelope"
             xmlns:w="http://schemas.xmlsoap.org/ws/2004/08/addressing"
             xmlns:d="http://schemas.xmlsoap.org/ws/2005/04/discovery"
             xmlns:dn="http://www.onvif.org/ver10/network/wsdl">
   <e:Header>
-    <w:MessageID>uuid:${DEVICE_UUID}</w:MessageID>
+    <w:MessageID>uuid:${this.camera.deviceUuid}</w:MessageID>
     <w:RelatesTo>${relatesTo}</w:RelatesTo>
     <w:To>http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</w:To>
     <w:Action>http://schemas.xmlsoap.org/ws/2005/04/discovery/ProbeMatches</w:Action>
@@ -54,22 +77,25 @@ socket.on("message", (msg, rinfo) => {
     <d:ProbeMatches>
       <d:ProbeMatch>
         <w:EndpointReference>
-          <w:Address>urn:uuid:${DEVICE_UUID}</w:Address>
+          <w:Address>urn:uuid:${this.camera.deviceUuid}</w:Address>
         </w:EndpointReference>
         <d:Types>dn:NetworkVideoTransmitter</d:Types>
-        <d:Scopes>onvif://www.onvif.org/Profile/Streaming</d:Scopes>
-        <d:XAddrs>${DEVICE_XADDR}</d:XAddrs>
+        <d:Scopes>onvif://www.onvif.org/name/${this.camera.name} onvif://www.onvif.org/Profile/Streaming</d:Scopes>
+        <d:XAddrs>${this.deviceXAddr}</d:XAddrs>
         <d:MetadataVersion>1</d:MetadataVersion>
       </d:ProbeMatch>
     </d:ProbeMatches>
   </e:Body>
 </e:Envelope>`.trim();
+  }
 
-  socket.send(response, rinfo.port, rinfo.address);
-});
+  start(): void {
+    console.log(`Starting WS-Discovery for camera: ${this.camera.name}`);
+    this.socket.bind(this.discoveryPort);
+  }
 
-const setupWSDiscovery = () => {
-  socket.bind(PORT);
-};
-
-export { setupWSDiscovery };
+  stop(): void {
+    console.log(`Stopping WS-Discovery for camera: ${this.camera.name}`);
+    this.socket.close();
+  }
+}
