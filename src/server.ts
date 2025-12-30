@@ -1,32 +1,22 @@
 import { Hono } from "hono";
 import { serve } from "@hono/node-server";
-import { getLocalIPv4 } from "./utils/getLocalIPv4";
 import { extractSoapAction, hasSecurity } from "./utils/soapParser";
 import { WSDiscoveryServer } from "../ws-discovery";
 import { Camera } from "./domain/Camera";
 import { DeviceController } from "./controllers/DeviceController";
 import { MediaController } from "./controllers/MediaController";
+import { Config } from "./config/Config";
 
-/* ----------------- Env ------------------ */
+/* ----------------- Config ------------------ */
 
-const cameraId = process.env.CAMERA_ID || "cam1";
-const cameraName = process.env.CAMERA_NAME || "Camera 1";
-const cameraRestreamPath = process.env.CAMERA_RESTREAM_PATH || "/cam1";
-
-// Port listening for ONVIP requests
-const PORT = Number(process.env.ONVIF_PORT) || 8000;
-// Port for restreamed RTSP
-const RTSP_PORT = Number(process.env.RTSP_STREAM_PORT) || 8554;
-
-// Host IP (to declare in ONVIF responses)
-const HOST = process.env.HOST_IP || getLocalIPv4();
+const config = new Config();
 
 /* ---------------- Camera ---------------- */
 
 const camera = new Camera({
-  id: cameraId,
-  name: cameraName,
-  restreamPath: cameraRestreamPath,
+  id: config.cameraId,
+  name: config.cameraName,
+  restreamPath: config.cameraRestreamPath,
 });
 
 /* ---------------- server ---------------- */
@@ -34,11 +24,14 @@ const camera = new Camera({
 const app = new Hono();
 
 // Initialize controllers
-const deviceController = new DeviceController({ host: HOST, port: PORT });
+const deviceController = new DeviceController({
+  host: config.hostIp,
+  port: config.onvifPort,
+});
 const mediaController = new MediaController({
   camera,
-  host: HOST,
-  rtspPort: RTSP_PORT,
+  host: config.hostIp,
+  rtspPort: config.rtspStreamPort,
 });
 
 // Logging middleware
@@ -47,6 +40,22 @@ app.use("*", async (c, next) => {
   console.log(c.req.method, c.req.path);
   await next();
   console.log("-----------------------");
+});
+
+// Health check endpoint for Docker
+app.get("/health", (c) => {
+  return c.json({
+    status: "ok",
+    camera: {
+      id: camera.id,
+      name: camera.name,
+    },
+    config: {
+      onvifPort: config.onvifPort,
+      rtspPort: config.rtspStreamPort,
+      host: config.hostIp,
+    },
+  });
 });
 
 // GET requests are not supported
@@ -93,13 +102,42 @@ app.post("/onvif/media_service", async (c) => {
 });
 
 // Initialize and start WS-Discovery
-const wsDiscovery = new WSDiscoveryServer(camera, PORT, HOST);
+const wsDiscovery = new WSDiscoveryServer(
+  camera,
+  config.onvifPort,
+  config.hostIp
+);
 wsDiscovery.start();
 
-serve({
+const server = serve({
   fetch: app.fetch,
-  port: PORT,
+  port: config.onvifPort,
   hostname: "0.0.0.0",
 });
 
-console.log(`ONVIF server listening on :${PORT}`);
+console.log(`\n✅ ONVIF server listening on :${config.onvifPort}`);
+console.log(`✅ WS-Discovery running`);
+console.log(`\n🔗 Health check: http://localhost:${config.onvifPort}/health\n`);
+
+// Graceful shutdown handlers
+const shutdown = () => {
+  console.log("\n⚠️  Shutting down gracefully...");
+
+  // Close WS-Discovery
+  wsDiscovery.stop();
+
+  // Close HTTP server
+  server.close(() => {
+    console.log("✅ Server closed");
+    process.exit(0);
+  });
+
+  // Force exit after 10 seconds
+  setTimeout(() => {
+    console.error("❌ Forced shutdown after timeout");
+    process.exit(1);
+  }, 10000);
+};
+
+process.on("SIGTERM", shutdown);
+process.on("SIGINT", shutdown);
