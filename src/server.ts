@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { spawn, type ChildProcess } from "node:child_process";
 import { Hono } from "hono";
 import { serve } from "@hono/node-server";
 import { WSDiscoveryServer } from "../ws-discovery";
@@ -11,6 +12,36 @@ import { createMediaRoutes } from "./routes/media.routes";
 
 const config = new Config();
 const cameras = loadCameras(config.camerasConfigPath);
+
+/* ---------------- MediaMTX ---------------- */
+
+function startMediaMTX(): ChildProcess {
+  const mtx = spawn("mediamtx", ["mediamtx.yml"], { cwd: process.cwd() });
+
+  mtx.stdout.on("data", (d) => process.stdout.write(`[mediamtx] ${d}`));
+  mtx.stderr.on("data", (d) => process.stderr.write(`[mediamtx] ${d}`));
+
+  mtx.on("exit", (code, signal) => {
+    if (signal !== "SIGTERM" && signal !== "SIGKILL") {
+      console.error(`[mediamtx] exited unexpectedly (code=${code})`);
+    }
+  });
+
+  mtx.on("error", (err) => {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+      console.error("[mediamtx] binary not found — install with: brew install mediamtx");
+    } else {
+      console.error("[mediamtx] failed to start:", err.message);
+    }
+  });
+
+  console.log("✅ MediaMTX started");
+  return mtx;
+}
+
+const mtx = startMediaMTX();
+
+/* ---------------- ONVIF server ---------------- */
 
 const app = new Hono();
 
@@ -58,13 +89,14 @@ const server = serve({
   hostname: "0.0.0.0",
 });
 
-console.log(`\n✅ ONVIF server listening on :${config.onvifPort}`);
+console.log(`✅ ONVIF server listening on :${config.onvifPort}`);
 console.log(`   Cameras: ${cameras.map((c) => c.name).join(", ")}`);
 console.log(`✅ WS-Discovery running`);
 console.log(`\n🔗 Health: http://localhost:${config.onvifPort}/health\n`);
 
 const shutdown = () => {
   console.log("\n⚠️  Shutting down gracefully...");
+  mtx.kill("SIGTERM");
   wsDiscovery.stop();
   server.close(() => {
     console.log("✅ Server closed");
