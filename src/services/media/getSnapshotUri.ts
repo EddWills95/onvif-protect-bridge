@@ -1,17 +1,14 @@
 import { envelope } from "../../utils/envelope";
 import { Camera } from "../../domain/Camera";
 
-export interface GetSnapshotUriParams {
-  camera: Camera;
-  host: string;
-  rtspPort: number;
-}
-
-export function getSnapshotUri({
-  camera,
-  host,
-  rtspPort,
-}: GetSnapshotUriParams): string {
+export function getSnapshotUri(
+  cameras: Camera[],
+  profileToken: string,
+  host: string,
+  rtspPort: number
+): string {
+  const camera =
+    cameras.find((c) => c.profileToken === profileToken) ?? cameras[0];
   const rtspUri = camera.rtspUri(host, rtspPort);
 
   return envelope(`

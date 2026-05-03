@@ -3,15 +3,14 @@ import { envelope } from "../../utils/envelope";
 export interface GetServicesParams {
   host: string;
   port: number;
-  cameraId: string;
 }
 
-export function getServices({ host, port, cameraId }: GetServicesParams): string {
+export function getServices({ host, port }: GetServicesParams): string {
   return envelope(`
 <GetServicesResponse xmlns="http://www.onvif.org/ver10/device/wsdl">
   <Service>
     <Namespace>http://www.onvif.org/ver10/media/wsdl</Namespace>
-    <XAddr>http://${host}:${port}/onvif/${cameraId}/media_service</XAddr>
+    <XAddr>http://${host}:${port}/onvif/media_service</XAddr>
     <Version>
       <Major>2</Major>
       <Minor>0</Minor>
@@ -27,7 +26,7 @@ export function getServices({ host, port, cameraId }: GetServicesParams): string
 
   <Service>
     <Namespace>http://www.onvif.org/ver10/media/wsdl</Namespace>
-    <XAddr>http://${host}:${port}/onvif/${cameraId}/media_service</XAddr>
+    <XAddr>http://${host}:${port}/onvif/media_service</XAddr>
     <Version><Major>2</Major><Minor>0</Minor></Version>
   </Service>
 </GetServicesResponse>`);

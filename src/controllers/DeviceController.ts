@@ -17,7 +17,6 @@ type DeviceAction =
 interface DeviceControllerParams {
   host: string;
   port: number;
-  cameraId: string;
 }
 
 export class DeviceController {
@@ -57,22 +56,14 @@ export class DeviceController {
   private getServices(c: Context): Response {
     return this.soapResponse(
       c,
-      getServices({
-        host: this.params.host,
-        port: this.params.port,
-        cameraId: this.params.cameraId,
-      })
+      getServices({ host: this.params.host, port: this.params.port })
     );
   }
 
   private getCapabilities(c: Context): Response {
     return this.soapResponse(
       c,
-      getCapabilities({
-        host: this.params.host,
-        port: this.params.port,
-        cameraId: this.params.cameraId,
-      })
+      getCapabilities({ host: this.params.host, port: this.params.port })
     );
   }
 

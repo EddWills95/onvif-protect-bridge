@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { Hono } from "hono";
 import { serve } from "@hono/node-server";
 import { WSDiscoveryServer } from "../ws-discovery";
@@ -8,16 +9,11 @@ import { loadCameras } from "./config/CameraLoader";
 import { createDeviceRoutes } from "./routes/device.routes";
 import { createMediaRoutes } from "./routes/media.routes";
 
-/* ----------------- Config ------------------ */
-
 const config = new Config();
 const cameras = loadCameras(config.camerasConfigPath);
 
-/* ---------------- server ---------------- */
-
 const app = new Hono();
 
-// Logging middleware
 app.use("*", async (c, next) => {
   console.log("---- ONVIF REQUEST ----");
   console.log(c.req.method, c.req.path);
@@ -25,7 +21,6 @@ app.use("*", async (c, next) => {
   console.log("-----------------------");
 });
 
-// Health check endpoint
 app.get("/health", (c) => {
   return c.json({
     status: "ok",
@@ -38,35 +33,22 @@ app.get("/health", (c) => {
   });
 });
 
-// Mount per-camera ONVIF routes
-cameras.forEach((camera) => {
-  const deviceController = new DeviceController({
-    host: config.hostIp,
-    port: config.onvifPort,
-    cameraId: camera.id,
-  });
-  const mediaController = new MediaController({
-    camera,
-    host: config.hostIp,
-    rtspPort: config.rtspStreamPort,
-  });
-
-  app.route(
-    `/onvif/${camera.id}/device_service`,
-    createDeviceRoutes(deviceController)
-  );
-  app.route(
-    `/onvif/${camera.id}/media_service`,
-    createMediaRoutes(mediaController)
-  );
+const deviceController = new DeviceController({
+  host: config.hostIp,
+  port: config.onvifPort,
 });
 
-// GET requests are not supported
-app.get("*", (c) => {
-  return c.text("GET unsupported by ONVIF implementation", 200);
+const mediaController = new MediaController({
+  cameras,
+  host: config.hostIp,
+  rtspPort: config.rtspStreamPort,
 });
 
-// Initialize and start WS-Discovery
+app.route("/onvif/device_service", createDeviceRoutes(deviceController));
+app.route("/onvif/media_service", createMediaRoutes(mediaController));
+
+app.get("*", (c) => c.text("GET unsupported by ONVIF implementation", 200));
+
 const wsDiscovery = new WSDiscoveryServer(cameras, config.onvifPort, config.hostIp);
 wsDiscovery.start();
 
@@ -77,25 +59,17 @@ const server = serve({
 });
 
 console.log(`\n✅ ONVIF server listening on :${config.onvifPort}`);
-cameras.forEach((cam) =>
-  console.log(
-    `   ${cam.name}: http://localhost:${config.onvifPort}/onvif/${cam.id}/device_service`
-  )
-);
+console.log(`   Cameras: ${cameras.map((c) => c.name).join(", ")}`);
 console.log(`✅ WS-Discovery running`);
-console.log(`\n🔗 Health check: http://localhost:${config.onvifPort}/health\n`);
+console.log(`\n🔗 Health: http://localhost:${config.onvifPort}/health\n`);
 
-// Graceful shutdown handlers
 const shutdown = () => {
   console.log("\n⚠️  Shutting down gracefully...");
-
   wsDiscovery.stop();
-
   server.close(() => {
     console.log("✅ Server closed");
     process.exit(0);
   });
-
   setTimeout(() => {
     console.error("❌ Forced shutdown after timeout");
     process.exit(1);

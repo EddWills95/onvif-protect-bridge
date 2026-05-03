@@ -12,7 +12,7 @@ type MediaAction =
   | "GetSnapshotUri";
 
 interface MediaControllerParams {
-  camera: Camera;
+  cameras: Camera[];
   host: string;
   rtspPort: number;
 }
@@ -43,8 +43,14 @@ export class MediaController {
     });
   }
 
+  private profileTokenFromBody(c: Context): string {
+    const body: string = c.get("soapBody") ?? "";
+    const match = body.match(/<ProfileToken[^>]*>([^<]+)<\/ProfileToken>/);
+    return match?.[1] ?? this.params.cameras[0].profileToken;
+  }
+
   private getProfiles(c: Context): Response {
-    return this.soapResponse(c, getProfiles({ camera: this.params.camera }));
+    return this.soapResponse(c, getProfiles(this.params.cameras));
   }
 
   private getVideoSources(c: Context): Response {
@@ -54,22 +60,24 @@ export class MediaController {
   private getStreamUri(c: Context): Response {
     return this.soapResponse(
       c,
-      getStreamUri({
-        camera: this.params.camera,
-        host: this.params.host,
-        rtspPort: this.params.rtspPort,
-      })
+      getStreamUri(
+        this.params.cameras,
+        this.profileTokenFromBody(c),
+        this.params.host,
+        this.params.rtspPort
+      )
     );
   }
 
   private getSnapshotUri(c: Context): Response {
     return this.soapResponse(
       c,
-      getSnapshotUri({
-        camera: this.params.camera,
-        host: this.params.host,
-        rtspPort: this.params.rtspPort,
-      })
+      getSnapshotUri(
+        this.params.cameras,
+        this.profileTokenFromBody(c),
+        this.params.host,
+        this.params.rtspPort
+      )
     );
   }
 }

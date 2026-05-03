@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import dgram from "dgram";
-import { Camera } from "./src/domain/Camera";
+import type { Camera } from "./src/domain/Camera";
 
 export class WSDiscoveryServer {
   private socket: dgram.Socket;
@@ -24,17 +24,17 @@ export class WSDiscoveryServer {
       try {
         this.socket.addMembership(this.multicastAddr);
         console.log(
-          `WS-Discovery listening on ${this.multicastAddr}:${this.discoveryPort}`
+          `WS-Discovery listening on ${this.multicastAddr}:${this.discoveryPort}`,
         );
-        this.cameras.forEach((cam) =>
+        this.cameras.forEach((cam) => {
           console.log(
-            `  ${cam.name}: http://${this.hostIp}:${this.onvifPort}/onvif/${cam.id}/device_service`
-          )
-        );
+            `${cam.name}: http://${this.hostIp}:${this.onvifPort}/onvif/${cam.id}/device_service`,
+          );
+        });
       } catch (err) {
         console.error("Failed to setup multicast:", err);
         console.log(
-          "WS-Discovery will continue without multicast (manual camera config required)"
+          "WS-Discovery will continue without multicast (manual camera config required)",
         );
       }
     });
@@ -52,9 +52,10 @@ export class WSDiscoveryServer {
     if (!xml.includes("Probe")) return;
 
     console.log(`Probe received from ${rinfo.address}`);
+    console.log(`Probe XML: ${xml}`);
 
     const messageIdMatch = xml.match(
-      /<wsa:MessageID[^>]*>([^<]+)<\/wsa:MessageID>/
+      /<[^:>]+:MessageID[^>]*>([^<]+)<\/[^:>]+:MessageID>/,
     );
     if (!messageIdMatch) {
       console.warn("Probe without MessageID, ignoring");
@@ -75,9 +76,9 @@ export class WSDiscoveryServer {
         </w:EndpointReference>
         <d:Types>dn:NetworkVideoTransmitter</d:Types>
         <d:Scopes>onvif://www.onvif.org/name/${cam.name} onvif://www.onvif.org/Profile/Streaming</d:Scopes>
-        <d:XAddrs>http://${this.hostIp}:${this.onvifPort}/onvif/${cam.id}/device_service</d:XAddrs>
+        <d:XAddrs>http://${this.hostIp}:${this.onvifPort}/onvif/device_service</d:XAddrs>
         <d:MetadataVersion>1</d:MetadataVersion>
-      </d:ProbeMatch>`
+      </d:ProbeMatch>`,
       )
       .join("\n");
 
@@ -102,7 +103,7 @@ ${probeMatches}
 
   start(): void {
     console.log(
-      `Starting WS-Discovery for ${this.cameras.length} camera(s): ${this.cameras.map((c) => c.name).join(", ")}`
+      `Starting WS-Discovery for ${this.cameras.length} camera(s): ${this.cameras.map((c) => c.name).join(", ")}`,
     );
     this.socket.bind(this.discoveryPort);
   }
