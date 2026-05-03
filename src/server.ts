@@ -1,4 +1,5 @@
 import "dotenv/config";
+import process from "node:process";
 import { spawn, type ChildProcess } from "node:child_process";
 import { Hono } from "hono";
 import { serve } from "@hono/node-server";
@@ -27,8 +28,8 @@ function startMediaMTX(): ChildProcess {
     }
   });
 
-  mtx.on("error", (err) => {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+  mtx.on("error", (err: NodeJS.ErrnoException) => {
+    if (err.code === "ENOENT") {
       console.error("[mediamtx] binary not found — install with: brew install mediamtx");
     } else {
       console.error("[mediamtx] failed to start:", err.message);
@@ -41,67 +42,69 @@ function startMediaMTX(): ChildProcess {
 
 const mtx = startMediaMTX();
 
-/* ---------------- ONVIF server ---------------- */
+/* ---------------- Per-camera ONVIF servers ---------------- */
 
-const app = new Hono();
+const servers = cameras.map((camera) => {
+  const app = new Hono();
 
-app.use("*", async (c, next) => {
-  console.log("---- ONVIF REQUEST ----");
-  console.log(c.req.method, c.req.path);
-  await next();
-  console.log("-----------------------");
-});
-
-app.get("/health", (c) => {
-  return c.json({
-    status: "ok",
-    cameras: cameras.map((cam) => ({ id: cam.id, name: cam.name })),
-    config: {
-      onvifPort: config.onvifPort,
-      rtspPort: config.rtspStreamPort,
-      host: config.hostIp,
-    },
+  app.use("*", async (c, next) => {
+    console.log(`[${camera.id}] ${c.req.method} ${c.req.path}`);
+    await next();
   });
+
+  app.get("/health", (c) =>
+    c.json({
+      status: "ok",
+      camera: { id: camera.id, name: camera.name },
+      config: { onvifPort: camera.port, rtspPort: config.rtspStreamPort, host: config.hostIp },
+    })
+  );
+
+  const deviceController = new DeviceController({
+    host: config.hostIp,
+    port: camera.port,
+  });
+
+  const mediaController = new MediaController({
+    cameras: [camera],
+    host: config.hostIp,
+    rtspPort: config.rtspStreamPort,
+  });
+
+  app.route("/onvif/device_service", createDeviceRoutes(deviceController));
+  app.route("/onvif/media_service", createMediaRoutes(mediaController));
+  app.get("*", (c) => c.text("GET unsupported by ONVIF implementation", 200));
+
+  const server = serve({ fetch: app.fetch, port: camera.port, hostname: "0.0.0.0" });
+
+  console.log(`✅ [${camera.name}] ONVIF listening on :${camera.port}`);
+  console.log(`   http://localhost:${camera.port}/health`);
+
+  return server;
 });
 
-const deviceController = new DeviceController({
-  host: config.hostIp,
-  port: config.onvifPort,
-});
+/* ---------------- WS-Discovery ---------------- */
 
-const mediaController = new MediaController({
-  cameras,
-  host: config.hostIp,
-  rtspPort: config.rtspStreamPort,
-});
-
-app.route("/onvif/device_service", createDeviceRoutes(deviceController));
-app.route("/onvif/media_service", createMediaRoutes(mediaController));
-
-app.get("*", (c) => c.text("GET unsupported by ONVIF implementation", 200));
-
-const wsDiscovery = new WSDiscoveryServer(cameras, config.onvifPort, config.hostIp);
+const wsDiscovery = new WSDiscoveryServer(cameras, config.hostIp);
 wsDiscovery.start();
 
-const server = serve({
-  fetch: app.fetch,
-  port: config.onvifPort,
-  hostname: "0.0.0.0",
-});
+console.log(`\n✅ WS-Discovery running (${cameras.length} camera(s))\n`);
 
-console.log(`✅ ONVIF server listening on :${config.onvifPort}`);
-console.log(`   Cameras: ${cameras.map((c) => c.name).join(", ")}`);
-console.log(`✅ WS-Discovery running`);
-console.log(`\n🔗 Health: http://localhost:${config.onvifPort}/health\n`);
+/* ---------------- Shutdown ---------------- */
 
 const shutdown = () => {
   console.log("\n⚠️  Shutting down gracefully...");
   mtx.kill("SIGTERM");
   wsDiscovery.stop();
-  server.close(() => {
-    console.log("✅ Server closed");
-    process.exit(0);
-  });
+  let closed = 0;
+  servers.forEach((server) =>
+    server.close(() => {
+      if (++closed === servers.length) {
+        console.log("✅ All servers closed");
+        process.exit(0);
+      }
+    })
+  );
   setTimeout(() => {
     console.error("❌ Forced shutdown after timeout");
     process.exit(1);

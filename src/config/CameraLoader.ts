@@ -5,6 +5,7 @@ import { Camera } from "../domain/Camera";
 interface RawCamera {
   id: string;
   name: string;
+  port: number;
   rtsp_url: string;
 }
 
@@ -30,10 +31,13 @@ export function loadCameras(configPath: string): Camera[] {
     if (!raw.id?.trim()) throw new Error(`${label} is missing "id"`);
     if (!raw.name?.trim()) throw new Error(`${label} is missing "name"`);
     if (!raw.rtsp_url?.trim()) throw new Error(`${label} is missing "rtsp_url"`);
+    const port = Number(raw.port);
+    if (!raw.port || isNaN(port)) throw new Error(`${label} is missing a valid "port"`);
 
     return new Camera({
       id: raw.id,
       name: raw.name,
+      port,
       rtspUrl: raw.rtsp_url,
     });
   });
