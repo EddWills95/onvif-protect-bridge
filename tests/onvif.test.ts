@@ -1,9 +1,10 @@
 import { beforeAll, describe, expect, it } from "vitest";
 
 const BASE_URL = "http://localhost:8000";
+const CAM_ID = "cam1";
 
 // Helper to make SOAP requests
-async function soapRequest(endpoint: string, action: string, body: string) {
+async function soapRequest(endpoint: string, body: string) {
   const response = await fetch(`${BASE_URL}${endpoint}`, {
     method: "POST",
     headers: {
@@ -21,28 +22,29 @@ async function soapRequest(endpoint: string, action: string, body: string) {
 
 describe("ONVIF Server Integration Tests", () => {
   beforeAll(async () => {
-    // Verify server is running
     try {
       await fetch(`${BASE_URL}/health`);
-    } catch (error) {
+    } catch {
       throw new Error(
-        "Server is not running. Start the server with 'npm start' before running tests."
+        "Server is not running. Start the server with 'npm run dev' before running tests."
       );
     }
   });
 
   describe("Health Check", () => {
-    it("should return health status", async () => {
+    it("should return health status with cameras array", async () => {
       const response = await fetch(`${BASE_URL}/health`);
       const data = await response.json();
 
       expect(response.status).toBe(200);
       expect(data).toMatchObject({
         status: "ok",
-        camera: {
-          id: expect.any(String),
-          name: expect.any(String),
-        },
+        cameras: expect.arrayContaining([
+          expect.objectContaining({
+            id: expect.any(String),
+            name: expect.any(String),
+          }),
+        ]),
         config: {
           onvifPort: expect.any(Number),
           rtspPort: expect.any(Number),
@@ -55,8 +57,7 @@ describe("ONVIF Server Integration Tests", () => {
   describe("Device Service", () => {
     it("should handle GetSystemDateAndTime", async () => {
       const response = await soapRequest(
-        "/onvif/device_service",
-        "GetSystemDateAndTime",
+        `/onvif/${CAM_ID}/device_service`,
         '<GetSystemDateAndTime xmlns="http://www.onvif.org/ver10/device/wsdl"/>'
       );
 
@@ -70,8 +71,7 @@ describe("ONVIF Server Integration Tests", () => {
 
     it("should handle GetDeviceInformation", async () => {
       const response = await soapRequest(
-        "/onvif/device_service",
-        "GetDeviceInformation",
+        `/onvif/${CAM_ID}/device_service`,
         '<GetDeviceInformation xmlns="http://www.onvif.org/ver10/device/wsdl"/>'
       );
 
@@ -85,8 +85,7 @@ describe("ONVIF Server Integration Tests", () => {
 
     it("should handle GetServices", async () => {
       const response = await soapRequest(
-        "/onvif/device_service",
-        "GetServices",
+        `/onvif/${CAM_ID}/device_service`,
         `<GetServices xmlns="http://www.onvif.org/ver10/device/wsdl">
           <IncludeCapability>true</IncludeCapability>
         </GetServices>`
@@ -96,7 +95,7 @@ describe("ONVIF Server Integration Tests", () => {
       expect(response).toContain(
         "<Namespace>http://www.onvif.org/ver10/media/wsdl</Namespace>"
       );
-      expect(response).toContain("/onvif/media_service</XAddr>");
+      expect(response).toContain(`/onvif/${CAM_ID}/media_service</XAddr>`);
       expect(response).toContain("<RTPMulticast>false</RTPMulticast>");
       expect(response).toContain("<RTP_TCP>true</RTP_TCP>");
     });
@@ -105,8 +104,7 @@ describe("ONVIF Server Integration Tests", () => {
   describe("Media Service", () => {
     it("should handle GetProfiles", async () => {
       const response = await soapRequest(
-        "/onvif/media_service",
-        "GetProfiles",
+        `/onvif/${CAM_ID}/media_service`,
         '<GetProfiles xmlns="http://www.onvif.org/ver10/media/wsdl"/>'
       );
 
@@ -119,17 +117,16 @@ describe("ONVIF Server Integration Tests", () => {
 
     it("should handle GetStreamUri", async () => {
       const response = await soapRequest(
-        "/onvif/media_service",
-        "GetStreamUri",
+        `/onvif/${CAM_ID}/media_service`,
         `<GetStreamUri xmlns="http://www.onvif.org/ver10/media/wsdl">
-          <ProfileToken>profile_1</ProfileToken>
+          <ProfileToken>profile_${CAM_ID}</ProfileToken>
           <Protocol>RTSP</Protocol>
         </GetStreamUri>`
       );
 
       expect(response).toContain("GetStreamUriResponse");
       expect(response).toContain("<Uri>rtsp://");
-      expect(response).toContain(":8554/");
+      expect(response).toContain(`:8554/${CAM_ID}`);
       expect(response).toContain(
         "<InvalidAfterConnect>false</InvalidAfterConnect>"
       );
@@ -141,13 +138,14 @@ describe("ONVIF Server Integration Tests", () => {
 
   describe("Error Handling", () => {
     it("should reject requests without SOAP action", async () => {
-      const response = await fetch(`${BASE_URL}/onvif/device_service`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/soap+xml",
-        },
-        body: "invalid soap",
-      });
+      const response = await fetch(
+        `${BASE_URL}/onvif/${CAM_ID}/device_service`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/soap+xml" },
+          body: "invalid soap",
+        }
+      );
 
       expect(response.status).toBe(400);
       const text = await response.text();
@@ -156,8 +154,7 @@ describe("ONVIF Server Integration Tests", () => {
 
     it("should reject unsupported actions", async () => {
       const response = await soapRequest(
-        "/onvif/device_service",
-        "UnsupportedAction",
+        `/onvif/${CAM_ID}/device_service`,
         '<UnsupportedAction xmlns="http://www.onvif.org/ver10/device/wsdl"/>'
       );
 
