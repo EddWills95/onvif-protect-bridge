@@ -6,8 +6,6 @@ interface RawCamera {
   id: string;
   name: string;
   rtsp_url: string;
-  username: string;
-  password: string;
 }
 
 export function loadCameras(configPath: string): Camera[] {
@@ -32,15 +30,11 @@ export function loadCameras(configPath: string): Camera[] {
     if (!raw.id?.trim()) throw new Error(`${label} is missing "id"`);
     if (!raw.name?.trim()) throw new Error(`${label} is missing "name"`);
     if (!raw.rtsp_url?.trim()) throw new Error(`${label} is missing "rtsp_url"`);
-    if (!raw.username?.trim()) throw new Error(`${label} is missing "username"`);
-    if (!raw.password?.trim()) throw new Error(`${label} is missing "password"`);
 
     return new Camera({
       id: raw.id,
       name: raw.name,
       rtspUrl: raw.rtsp_url,
-      username: raw.username,
-      password: raw.password,
     });
   });
 }

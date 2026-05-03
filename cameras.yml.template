@@ -1,11 +1,7 @@
 cameras:
   - id: cam1
     name: Camera Name
-    rtsp_url: rtsp://192.168.1.x:554/stream
-    username: admin
-    password: changeme
+    rtsp_url: rtsp://username:password@192.168.1.x:554/stream
   - id: cam2
     name: Second Camera
-    rtsp_url: rtsp://192.168.1.y:554/stream
-    username: admin
-    password: changeme
+    rtsp_url: rtsp://username:password@192.168.1.y:554/stream
