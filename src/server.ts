@@ -63,7 +63,7 @@ function startMediaMTX(): ChildProcess {
   return mtx;
 }
 
-const mtx = isDockerMode ? null : startMediaMTX();
+const mtx = startMediaMTX();
 
 /* ---------------- Per-camera ONVIF servers ---------------- */
 
