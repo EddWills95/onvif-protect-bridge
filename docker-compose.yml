@@ -4,7 +4,7 @@ networks:
   onvif:
     driver: macvlan
     driver_opts:
-      parent: ${NETWORK_INTERFACE:-eth0}   # eth0 on Pi, en0 on Mac (requires OrbStack)
+      parent: ${NETWORK_INTERFACE:-eth0}   # eth0 on Pi/Linux, en0 on Mac (requires OrbStack)
     ipam:
       config:
         - subnet: 192.168.1.0/24
@@ -18,6 +18,7 @@ services:
       CAMERA_ID: cam1
       CAMERA_NAME: Patio
       CAMERA_RTSP_URL: ${CAM1_RTSP_URL}
+      MTX_PATHS_CAM1_SOURCE: ${CAM1_RTSP_URL}
       RTSP_STREAM_PORT: "8554"
     networks:
       onvif:
@@ -28,8 +29,9 @@ services:
     restart: unless-stopped
     environment:
       CAMERA_ID: cam2
-      CAMERA_NAME: Back Garden
+      CAMERA_NAME: Front Garden
       CAMERA_RTSP_URL: ${CAM2_RTSP_URL}
+      MTX_PATHS_CAM2_SOURCE: ${CAM2_RTSP_URL}
       RTSP_STREAM_PORT: "8554"
     networks:
       onvif:
@@ -40,8 +42,9 @@ services:
     restart: unless-stopped
     environment:
       CAMERA_ID: cam3
-      CAMERA_NAME: Side Back Garden
+      CAMERA_NAME: Side Garden
       CAMERA_RTSP_URL: ${CAM3_RTSP_URL}
+      MTX_PATHS_CAM3_SOURCE: ${CAM3_RTSP_URL}
       RTSP_STREAM_PORT: "8554"
     networks:
       onvif:
@@ -52,8 +55,9 @@ services:
     restart: unless-stopped
     environment:
       CAMERA_ID: cam4
-      CAMERA_NAME: Front Garden
+      CAMERA_NAME: Back Garden
       CAMERA_RTSP_URL: ${CAM4_RTSP_URL}
+      MTX_PATHS_CAM4_SOURCE: ${CAM4_RTSP_URL}
       RTSP_STREAM_PORT: "8554"
     networks:
       onvif:
@@ -66,7 +70,21 @@ services:
       CAMERA_ID: cam5
       CAMERA_NAME: Driveway
       CAMERA_RTSP_URL: ${CAM5_RTSP_URL}
+      MTX_PATHS_CAM5_SOURCE: ${CAM5_RTSP_URL}
       RTSP_STREAM_PORT: "8554"
     networks:
       onvif:
         ipv4_address: 192.168.1.106
+
+  cam6:
+    image: eddwills95/rtsp-2-protect:latest
+    restart: unless-stopped
+    environment:
+      CAMERA_ID: cam6
+      CAMERA_NAME: Front of House
+      CAMERA_RTSP_URL: ${CAM6_RTSP_URL}
+      MTX_PATHS_CAM6_SOURCE: ${CAM6_RTSP_URL}
+      RTSP_STREAM_PORT: "8554"
+    networks:
+      onvif:
+        ipv4_address: 192.168.1.107

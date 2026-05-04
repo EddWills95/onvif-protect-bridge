@@ -4,84 +4,66 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Project Does
 
-`rtsp-2-protect` is an ONVIF bridge that makes one or more RTSP streams (e.g. from MediaMTX) appear as ONVIF-compliant IP cameras to UniFi Protect. It exposes:
-- An HTTP server (Hono) answering ONVIF SOAP requests at `/onvif/{cameraId}/device_service` and `/onvif/{cameraId}/media_service` — one route pair per camera
-- A UDP WS-Discovery server (port 3702) that responds to ONVIF Probe messages so Protect can auto-discover all virtual cameras
+`rtsp-2-protect` is an ONVIF bridge that makes RTSP camera streams appear as ONVIF-compliant IP cameras to UniFi Protect. Each camera runs as its own Docker container with a unique MAC address (via macvlan), so Protect sees them as genuine separate devices.
 
-## Commands
+Each container:
+- Runs **mediamtx** internally to restream the upstream RTSP source
+- Exposes an **ONVIF HTTP server** (Hono) at `/onvif/device_service` and `/onvif/media_service`
+- Exposes a **WS-Discovery** UDP server (port 3702) so Protect can auto-discover the camera
+
+## Running
 
 ```bash
-# Run dev server
-npm run dev
+# Deploy via Docker Compose (production / Portainer)
+docker compose up
 
-# Run tests (integration — requires server to be running on port 8000)
+# Run tests (integration — requires a running container)
 npm test
-
-# Watch mode
-npm run test:watch
-
-# Run a single test file
-npx vitest run tests/onvif.test.ts
-
-# Run a single test by name pattern
-npx vitest run --reporter=verbose -t "GetStreamUri"
 ```
 
-> Tests in `tests/onvif.test.ts` are **integration tests** — they make real HTTP requests. Start the server with `npm run dev` before running them. The default test port is `8000` (set `ONVIF_PORT=8000` in `.env`). Tests assume a camera with `id: cam1` exists in `cameras.yml`.
+> Tests in `tests/onvif.test.ts` make real HTTP requests. Point them at a running container by setting `CAMERA_PORT` in `.env`.
 
-## Camera Configuration
+## Configuration
 
-Cameras are defined in `cameras.yml` (gitignored — contains credentials). Copy `cameras.yml.template` to get started:
+Copy `.env.template` to `.env` and fill in your RTSP URLs. Each camera is a separate container entry in `docker-compose.yml`.
 
-```yaml
-cameras:
-  - id: cam1
-    name: Driveway
-    rtsp_url: rtsp://192.168.1.247:554/stream   # upstream source (consumed by MediaMTX)
-    username: admin
-    password: secret
-```
-
-Each camera's `id` determines its route prefix and its MediaMTX restream path (e.g. `cam1` → `rtsp://host:8554/cam1`).
-
-## Environment
-
-Copy `.env.template` to `.env`. Key variables:
+### Environment Variables (per container)
 
 | Variable | Default | Notes |
 |---|---|---|
-| `CAMERAS_CONFIG` | `./cameras.yml` | Path to cameras YAML file |
-| `ONVIF_PORT` | `8080` | HTTP port for ONVIF service |
-| `RTSP_STREAM_PORT` | `8554` | Port of the MediaMTX restream server |
-| `HOST_IP` | auto-detected | Must be the LAN IP reachable by Protect |
+| `CAMERA_ID` | — | Required. Unique ID, e.g. `cam1`. Sets the ONVIF path and mediamtx stream name. |
+| `CAMERA_NAME` | — | Required. Display name shown in Protect, e.g. `Patio`. |
+| `CAMERA_RTSP_URL` | — | Required. Full RTSP URL of the upstream source camera. |
+| `MTX_PATHS_<ID>_SOURCE` | — | Same value as `CAMERA_RTSP_URL`. Tells mediamtx where to pull from. |
+| `CAMERA_PORT` | `8080` | ONVIF HTTP port. Must match the container's macvlan-assigned port. |
+| `RTSP_STREAM_PORT` | `8554` | mediamtx RTSP output port. |
+| `NETWORK_INTERFACE` | `eth0` | macvlan parent interface (`eth0` on Linux/Pi, `en0` on Mac via OrbStack). |
 
 ## Architecture
 
 ```
-cameras.yml            — camera list (id, name, rtsp_url, username, password) — gitignored
 src/
-  server.ts            — entry point: loads cameras, mounts per-camera routes, starts WS-Discovery
+  server.ts            — entry: loads camera from env, starts mediamtx, serves ONVIF + WS-Discovery
   config/
-    Config.ts          — reads env vars, validates global settings
-    CameraLoader.ts    — reads cameras.yml with yaml package, returns Camera[]
-  domain/Camera.ts     — value object: id, name, rtspUrl, credentials, UUID; rtspUri() → MediaMTX path
+    Config.ts          — reads global env vars (RTSP_STREAM_PORT, HOST_IP)
+    CameraLoader.ts    — loads a single Camera from env vars
+  domain/Camera.ts     — value object: id, name, rtspUrl, port, UUID; rtspUri() → mediamtx path
   middleware/
     soap.middleware.ts — extracts SOAP action name from body; stores action+body in Hono ctx
   routes/
-    device.routes.ts   — POST /onvif/{id}/device_service → DeviceController
-    media.routes.ts    — POST /onvif/{id}/media_service  → MediaController
+    device.routes.ts   — POST /onvif/device_service → DeviceController
+    media.routes.ts    — POST /onvif/media_service  → MediaController
   controllers/
-    DeviceController   — dispatches action string → device service functions; holds cameraId for XAddr paths
+    DeviceController   — dispatches action string → device service functions
     MediaController    — dispatches action string → media service functions; holds Camera instance
   services/
     device/            — one file per ONVIF device action (GetCapabilities, GetServices, …)
     media/             — one file per ONVIF media action (GetProfiles, GetStreamUri, …)
   utils/
     envelope.ts        — wraps XML in a SOAP envelope
-    soapParser.ts      — extracts action name + detects WS-Security header
+    soapParser.ts      — extracts action name from SOAP body
     getLocalIPv4.ts    — auto-detects LAN IP when HOST_IP is not set
-    deviceIdentity.ts  — shared device identity constants
-ws-discovery.ts        — UDP multicast listener; answers WS-Discovery Probe with one ProbeMatch per camera
+ws-discovery.ts        — UDP multicast listener; answers WS-Discovery Probe with a ProbeMatch
 ```
 
 ### Adding a New ONVIF Action
@@ -97,4 +79,4 @@ Every ONVIF request is a `POST` with a SOAP envelope. `soapMiddleware` parses th
 
 ### XAddr URLs and Protect Compatibility
 
-The `XAddr` fields returned by `GetCapabilities` and `GetServices` must exactly match the server's actual endpoint paths. With per-camera routing, they include the camera ID (e.g. `http://host:8080/onvif/cam1/media_service`). The WS-Discovery `ProbeMatch` `XAddrs` field must also match. These values are how Protect discovers where to send subsequent requests.
+The `XAddr` fields in `GetCapabilities` and `GetServices` responses must exactly match the server's endpoint. In Docker mode the container's own macvlan IP is used (e.g. `http://192.168.1.101:8080/onvif/device_service`). The WS-Discovery `ProbeMatch` `XAddrs` must also match — this is how Protect knows where to send subsequent requests.
