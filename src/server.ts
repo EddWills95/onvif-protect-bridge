@@ -7,25 +7,28 @@ import { WSDiscoveryServer } from "../ws-discovery";
 import { DeviceController } from "./controllers/DeviceController";
 import { MediaController } from "./controllers/MediaController";
 import { Config } from "./config/Config";
-import { loadCameras } from "./config/CameraLoader";
+import { loadCameras, loadCameraFromEnv } from "./config/CameraLoader";
 import type { Camera } from "./domain/Camera";
 import { createDeviceRoutes } from "./routes/device.routes";
 import { createMediaRoutes } from "./routes/media.routes";
 import { addIpAliases, removeIpAliases } from "./utils/ipAliases";
 
 const config = new Config();
-const cameras = loadCameras(config.camerasConfigPath);
+const isDockerMode = !!process.env.CAMERA_ID;
+const cameras = isDockerMode ? [loadCameraFromEnv()] : loadCameras(config.camerasConfigPath);
 
-/* ---------------- IP aliases ---------------- */
+/* ---------------- IP aliases (local mode only) ---------------- */
 
-const aliasedIps = cameras.map((c) => c.ip).filter((ip): ip is string => !!ip);
+const aliasedIps = isDockerMode
+  ? []
+  : cameras.map((c) => c.ip).filter((ip): ip is string => !!ip);
 let activeAliases = new Set<string>();
 if (aliasedIps.length > 0) {
   console.log(`\nSetting up ${aliasedIps.length} IP alias(es)...`);
   activeAliases = addIpAliases(aliasedIps);
 }
 
-/* ---------------- MediaMTX ---------------- */
+/* ---------------- MediaMTX (local mode only) ---------------- */
 
 function writeMediaMTXConfig(cams: Camera[]): void {
   const paths = cams
@@ -60,7 +63,7 @@ function startMediaMTX(): ChildProcess {
   return mtx;
 }
 
-const mtx = startMediaMTX();
+const mtx = isDockerMode ? null : startMediaMTX();
 
 /* ---------------- Per-camera ONVIF servers ---------------- */
 
@@ -89,7 +92,7 @@ const servers = cameras.map((camera) => {
 
   const mediaController = new MediaController({
     cameras: [camera],
-    host: config.hostIp,
+    host: config.rtspHost,
     rtspPort: config.rtspStreamPort,
   });
 
@@ -118,7 +121,7 @@ console.log(`\n✅ WS-Discovery running (${cameras.length} camera(s))\n`);
 
 const shutdown = () => {
   console.log("\n⚠️  Shutting down gracefully...");
-  mtx.kill("SIGTERM");
+  mtx?.kill("SIGTERM");
   wsDiscovery.stop();
   if (aliasedIps.length > 0) removeIpAliases(aliasedIps);
   let closed = 0;

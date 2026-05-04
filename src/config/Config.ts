@@ -10,6 +10,7 @@ export class Config {
   public readonly camerasConfigPath: string;
   public readonly rtspStreamPort: number;
   public readonly hostIp: string;
+  public readonly rtspHost: string;
 
   constructor(params?: Partial<ConfigParams>) {
     this.camerasConfigPath =
@@ -19,6 +20,7 @@ export class Config {
     this.rtspStreamPort =
       params?.rtspStreamPort ?? this.parsePort("RTSP_STREAM_PORT", 8554);
     this.hostIp = params?.hostIp ?? process.env.HOST_IP ?? getLocalIPv4();
+    this.rtspHost = process.env.RTSP_HOST ?? this.hostIp;
 
     this.validate();
     this.logConfig();
