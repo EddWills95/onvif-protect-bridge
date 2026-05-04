@@ -1,5 +1,5 @@
 {
-  "name": "onvif-rtsp-proxy",
+  "name": "onvif-protect-bridge",
   "private": true,
   "scripts": {
     "dev": "ts-node src/server.ts",

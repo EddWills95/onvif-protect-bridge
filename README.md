@@ -1,4 +1,4 @@
-# rtsp-2-protect
+# onvif-protect-bridge
 
 An ONVIF bridge that makes RTSP camera streams appear as genuine IP cameras in UniFi Protect.
 
@@ -20,8 +20,8 @@ Inside each container:
 **1. Clone and configure**
 
 ```bash
-git clone https://github.com/eddwills95/rtsp-2-protect.git
-cd rtsp-2-protect
+git clone https://github.com/eddwills95/onvif-protect-bridge.git
+cd onvif-protect-bridge
 cp .env.template .env
 ```
 
