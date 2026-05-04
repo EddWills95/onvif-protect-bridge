@@ -4,6 +4,7 @@ node_modules
 
 .env
 cameras.yml
+mediamtx.yml
 .worktrees
 
 .claude/worktrees

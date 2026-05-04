@@ -1,6 +1,6 @@
 import "dotenv/config";
-import process from "node:process";
 import { spawn, type ChildProcess } from "node:child_process";
+import { writeFileSync } from "node:fs";
 import { Hono } from "hono";
 import { serve } from "@hono/node-server";
 import { WSDiscoveryServer } from "../ws-discovery";
@@ -8,15 +8,35 @@ import { DeviceController } from "./controllers/DeviceController";
 import { MediaController } from "./controllers/MediaController";
 import { Config } from "./config/Config";
 import { loadCameras } from "./config/CameraLoader";
+import type { Camera } from "./domain/Camera";
 import { createDeviceRoutes } from "./routes/device.routes";
 import { createMediaRoutes } from "./routes/media.routes";
+import { addIpAliases, removeIpAliases } from "./utils/ipAliases";
 
 const config = new Config();
 const cameras = loadCameras(config.camerasConfigPath);
 
+/* ---------------- IP aliases ---------------- */
+
+const aliasedIps = cameras.map((c) => c.ip).filter((ip): ip is string => !!ip);
+let activeAliases = new Set<string>();
+if (aliasedIps.length > 0) {
+  console.log(`\nSetting up ${aliasedIps.length} IP alias(es)...`);
+  activeAliases = addIpAliases(aliasedIps);
+}
+
 /* ---------------- MediaMTX ---------------- */
 
+function writeMediaMTXConfig(cams: Camera[]): void {
+  const paths = cams
+    .map((c) => `  ${c.id}:\n    source: ${c.rtspUrl}\n    sourceProtocol: tcp`)
+    .join("\n");
+  writeFileSync("mediamtx.yml", `paths:\n${paths}\n`, "utf-8");
+  console.log(`Generated mediamtx.yml with ${cams.length} path(s)`);
+}
+
 function startMediaMTX(): ChildProcess {
+  writeMediaMTXConfig(cameras);
   const mtx = spawn("mediamtx", ["mediamtx.yml"], { cwd: process.cwd() });
 
   mtx.stdout.on("data", (d) => process.stdout.write(`[mediamtx] ${d}`));
@@ -61,8 +81,10 @@ const servers = cameras.map((camera) => {
   );
 
   const deviceController = new DeviceController({
-    host: config.hostIp,
+    host: camera.ip ?? config.hostIp,
     port: camera.port,
+    cameraId: camera.id,
+    cameraName: camera.name,
   });
 
   const mediaController = new MediaController({
@@ -75,10 +97,12 @@ const servers = cameras.map((camera) => {
   app.route("/onvif/media_service", createMediaRoutes(mediaController));
   app.get("*", (c) => c.text("GET unsupported by ONVIF implementation", 200));
 
-  const server = serve({ fetch: app.fetch, port: camera.port, hostname: "0.0.0.0" });
+  const bindIp = camera.ip && activeAliases.has(camera.ip) ? camera.ip : "0.0.0.0";
+  const server = serve({ fetch: app.fetch, port: camera.port, hostname: bindIp });
 
-  console.log(`✅ [${camera.name}] ONVIF listening on :${camera.port}`);
-  console.log(`   http://localhost:${camera.port}/health`);
+  const displayAddr = bindIp !== "0.0.0.0" ? `${bindIp}:${camera.port}` : `:${camera.port}`;
+  console.log(`✅ [${camera.name}] ONVIF listening on ${displayAddr}`);
+  console.log(`   http://${camera.ip ?? "localhost"}:${camera.port}/health`);
 
   return server;
 });
@@ -96,6 +120,7 @@ const shutdown = () => {
   console.log("\n⚠️  Shutting down gracefully...");
   mtx.kill("SIGTERM");
   wsDiscovery.stop();
+  if (aliasedIps.length > 0) removeIpAliases(aliasedIps);
   let closed = 0;
   servers.forEach((server) =>
     server.close(() => {

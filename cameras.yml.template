@@ -1,9 +1,11 @@
 cameras:
   - id: cam1
     name: Camera Name
-    port: 8081
+    ip: 192.168.1.101   # virtual IP for this camera — must be unused on your LAN
+    port: 8080
     rtsp_url: rtsp://username:password@192.168.1.x:554/stream
   - id: cam2
     name: Second Camera
-    port: 8082
+    ip: 192.168.1.102
+    port: 8080
     rtsp_url: rtsp://username:password@192.168.1.y:554/stream

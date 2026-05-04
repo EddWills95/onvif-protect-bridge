@@ -4,6 +4,7 @@ import type { Camera } from "./src/domain/Camera";
 
 export class WSDiscoveryServer {
   private socket: dgram.Socket;
+  private readonly sendSockets: Map<string, dgram.Socket> = new Map();
   private readonly cameras: Camera[];
   private readonly multicastAddr = "239.255.255.250";
   private readonly discoveryPort = 3702;
@@ -14,6 +15,15 @@ export class WSDiscoveryServer {
     this.hostIp = hostIp;
     this.socket = dgram.createSocket({ type: "udp4", reuseAddr: true });
 
+    for (const cam of cameras) {
+      if (cam.ip) {
+        const sock = dgram.createSocket({ type: "udp4" });
+        sock.on("error", (err) => console.warn(`[ws-discovery] send socket error for ${cam.id}: ${err.message}`));
+        sock.bind(0, cam.ip);
+        this.sendSockets.set(cam.id, sock);
+      }
+    }
+
     this.setupHandlers();
   }
 
@@ -23,7 +33,7 @@ export class WSDiscoveryServer {
         this.socket.addMembership(this.multicastAddr);
         console.log(`WS-Discovery listening on ${this.multicastAddr}:${this.discoveryPort}`);
         this.cameras.forEach((cam) =>
-          console.log(`  ${cam.name}: http://${this.hostIp}:${cam.port}/onvif/device_service`)
+          console.log(`  ${cam.name}: http://${cam.ip ?? this.hostIp}:${cam.port}/onvif/device_service`)
         );
       } catch (err) {
         console.error("Failed to setup multicast:", err);
@@ -48,26 +58,14 @@ export class WSDiscoveryServer {
       return;
     }
 
-    const response = this.buildProbeResponse(messageIdMatch[1]);
-    this.socket.send(response, rinfo.port, rinfo.address);
+    for (const cam of this.cameras) {
+      const response = this.buildProbeResponse(messageIdMatch[1], cam);
+      const sock = this.sendSockets.get(cam.id) ?? this.socket;
+      sock.send(response, rinfo.port, rinfo.address);
+    }
   }
 
-  private buildProbeResponse(relatesTo: string): string {
-    const probeMatches = this.cameras
-      .map(
-        (cam) => `
-      <d:ProbeMatch>
-        <w:EndpointReference>
-          <w:Address>urn:uuid:${cam.deviceUuid}</w:Address>
-        </w:EndpointReference>
-        <d:Types>dn:NetworkVideoTransmitter</d:Types>
-        <d:Scopes>onvif://www.onvif.org/name/${cam.name} onvif://www.onvif.org/Profile/Streaming</d:Scopes>
-        <d:XAddrs>http://${this.hostIp}:${cam.port}/onvif/device_service</d:XAddrs>
-        <d:MetadataVersion>1</d:MetadataVersion>
-      </d:ProbeMatch>`
-      )
-      .join("\n");
-
+  private buildProbeResponse(relatesTo: string, cam: Camera): string {
     return `<?xml version="1.0" encoding="UTF-8"?>
 <e:Envelope xmlns:e="http://www.w3.org/2003/05/soap-envelope"
             xmlns:w="http://schemas.xmlsoap.org/ws/2004/08/addressing"
@@ -81,7 +79,15 @@ export class WSDiscoveryServer {
   </e:Header>
   <e:Body>
     <d:ProbeMatches>
-${probeMatches}
+      <d:ProbeMatch>
+        <w:EndpointReference>
+          <w:Address>urn:uuid:${cam.deviceUuid}</w:Address>
+        </w:EndpointReference>
+        <d:Types>dn:NetworkVideoTransmitter</d:Types>
+        <d:Scopes>onvif://www.onvif.org/name/${cam.name} onvif://www.onvif.org/Profile/Streaming</d:Scopes>
+        <d:XAddrs>http://${cam.ip ?? this.hostIp}:${cam.port}/onvif/device_service</d:XAddrs>
+        <d:MetadataVersion>1</d:MetadataVersion>
+      </d:ProbeMatch>
     </d:ProbeMatches>
   </e:Body>
 </e:Envelope>`;
@@ -95,5 +101,6 @@ ${probeMatches}
   stop(): void {
     console.log("Stopping WS-Discovery");
     this.socket.close();
+    for (const sock of this.sendSockets.values()) sock.close();
   }
 }

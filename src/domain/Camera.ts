@@ -5,6 +5,7 @@ export interface CameraConfig {
   name: string;
   port: number;
   rtspUrl: string;
+  ip?: string;
 }
 
 export class Camera {
@@ -12,6 +13,7 @@ export class Camera {
   readonly name: string;
   readonly port: number;
   readonly rtspUrl: string;
+  readonly ip: string | undefined;
   readonly deviceUuid: string;
 
   constructor(config: CameraConfig) {
@@ -19,9 +21,10 @@ export class Camera {
     this.name = config.name;
     this.port = config.port;
     this.rtspUrl = config.rtspUrl;
+    this.ip = config.ip;
     this.deviceUuid = crypto.randomUUID();
 
-    console.log(`Camera initialized: ${this.name} (port ${this.port}, UUID: ${this.deviceUuid})`);
+    console.log(`Camera initialized: ${this.name} (${this.ip ?? "shared IP"}:${this.port}, UUID: ${this.deviceUuid})`);
   }
 
   get profileToken() {

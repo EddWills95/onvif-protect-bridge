@@ -7,6 +7,7 @@ interface RawCamera {
   name: string;
   port: number;
   rtsp_url: string;
+  ip?: string;
 }
 
 export function loadCameras(configPath: string): Camera[] {
@@ -39,6 +40,7 @@ export function loadCameras(configPath: string): Camera[] {
       name: raw.name,
       port,
       rtspUrl: raw.rtsp_url,
+      ip: raw.ip?.trim() || undefined,
     });
   });
 }
