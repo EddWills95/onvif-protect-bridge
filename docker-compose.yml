@@ -2,7 +2,7 @@ networks:
   onvif:
     driver: macvlan
     driver_opts:
-      parent: eth0   # wired ethernet interface — eth0 on Pi, change to en0 on Mac (limited support)
+      parent: ${NETWORK_INTERFACE:-eth0}   # eth0 on Pi, en0 on Mac (requires OrbStack)
     ipam:
       config:
         - subnet: 192.168.1.0/24
