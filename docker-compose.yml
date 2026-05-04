@@ -12,7 +12,7 @@ networks:
 
 services:
   cam1:
-    image: eddwills95/rtsp-2-protect:latest
+    image: eddwills95/onvif-protect-bridge:latest
     restart: unless-stopped
     environment:
       CAMERA_ID: cam1
@@ -25,7 +25,7 @@ services:
         ipv4_address: 192.168.1.101
 
   cam2:
-    image: eddwills95/rtsp-2-protect:latest
+    image: eddwills95/onvif-protect-bridge:latest
     restart: unless-stopped
     environment:
       CAMERA_ID: cam2
@@ -38,7 +38,7 @@ services:
         ipv4_address: 192.168.1.103
 
   cam3:
-    image: eddwills95/rtsp-2-protect:latest
+    image: eddwills95/onvif-protect-bridge:latest
     restart: unless-stopped
     environment:
       CAMERA_ID: cam3
@@ -51,7 +51,7 @@ services:
         ipv4_address: 192.168.1.104
 
   cam4:
-    image: eddwills95/rtsp-2-protect:latest
+    image: eddwills95/onvif-protect-bridge:latest
     restart: unless-stopped
     environment:
       CAMERA_ID: cam4
@@ -64,7 +64,7 @@ services:
         ipv4_address: 192.168.1.105
 
   cam5:
-    image: eddwills95/rtsp-2-protect:latest
+    image: eddwills95/onvif-protect-bridge:latest
     restart: unless-stopped
     environment:
       CAMERA_ID: cam5
@@ -77,7 +77,7 @@ services:
         ipv4_address: 192.168.1.106
 
   cam6:
-    image: eddwills95/rtsp-2-protect:latest
+    image: eddwills95/onvif-protect-bridge:latest
     restart: unless-stopped
     environment:
       CAMERA_ID: cam6
