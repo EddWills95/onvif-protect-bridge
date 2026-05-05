@@ -2,6 +2,8 @@
 
 An ONVIF bridge that makes RTSP camera streams appear as genuine IP cameras in UniFi Protect.
 
+[Docker Image](https://hub.docker.com/repository/docker/eddwills95/onvif-protect-bridge/general)
+
 ## The Problem
 
 UniFi Protect won't add cameras unless they respond to ONVIF discovery and serve compliant SOAP endpoints. It also deduplicates cameras by MAC address — so you can't fake multiple cameras from a single host using IP aliases.
