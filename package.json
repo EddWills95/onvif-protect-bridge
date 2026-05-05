@@ -1,5 +1,6 @@
 {
   "name": "onvif-protect-bridge",
+  "version": "1.0.0",
   "private": true,
   "scripts": {
     "dev": "ts-node src/server.ts",
@@ -12,7 +13,10 @@
     "hono": "^4.6.14"
   },
   "devDependencies": {
+    "@semantic-release/github": "^11.0.6",
+    "@semantic-release/npm": "^12.0.2",
     "@types/node": "^25.0.3",
+    "semantic-release": "^24.2.9",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3",
     "vitest": "^4.0.16"

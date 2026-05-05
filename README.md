@@ -113,6 +113,21 @@ Click **Deploy the stack**. Portainer will pull `eddwills95/onvif-protect-bridge
 
 PRs welcome. The architecture is documented in [CLAUDE.md](CLAUDE.md) — in particular the "Adding a New ONVIF Action" section walks through exactly what to change when extending the ONVIF surface.
 
+### Commit messages
+
+This project uses [Conventional Commits](https://www.conventionalcommits.org). Your commit message prefix determines what happens when your PR is merged:
+
+| Prefix | Example | Release |
+|---|---|---|
+| `fix:` | `fix: correct GetStreamUri port` | Patch — `1.0.1` |
+| `feat:` | `feat: add GetSnapshotUri proxy` | Minor — `1.1.0` |
+| `feat!:` or `BREAKING CHANGE:` | `feat!: change config format` | Major — `2.0.0` |
+| `chore:`, `docs:`, `refactor:` | `chore: update readme` | No release |
+
+### Release process
+
+Releases are fully automated. When a PR is merged to `main`, [semantic-release](https://semantic-release.gitbook.io) analyses the commits and — if there's a releasable change — creates a git tag and GitHub Release with a generated changelog. The Docker image is then built and pushed automatically with matching semver tags (`1.2.0`, `1.2`, `1`, `latest`).
+
 ## License
 
 MIT
