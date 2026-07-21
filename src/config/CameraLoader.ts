@@ -12,5 +12,6 @@ export function loadCameraFromEnv(): Camera {
     name: requireEnv("CAMERA_NAME"),
     rtspUrl: requireEnv("CAMERA_RTSP_URL"),
     port: parseInt(process.env.CAMERA_PORT ?? "8080"),
+    uuid: process.env.CAMERA_UUID,
   });
 }
