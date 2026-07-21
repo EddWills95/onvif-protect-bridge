@@ -101,6 +101,7 @@ Click **Deploy the stack**. Portainer will pull `eddwills95/onvif-protect-bridge
 | `CAMERA_PORT` | `docker-compose.yml` | ONVIF HTTP port (default `8080`) |
 | `CAMERA_UUID` | `docker-compose.yml` | Optional. Overrides the ONVIF device UUID, which is otherwise derived deterministically from `CAMERA_ID`. Only set this to preserve the identity of a camera whose `CAMERA_ID` you need to change. |
 | `RTSP_STREAM_PORT` | `docker-compose.yml` | mediamtx RTSP output port (default `8554`) |
+| `DEBUG` | `docker-compose.yml` | Optional. Set to log every incoming SOAP request body — off by default to keep the request path fast and logs quiet. |
 
 ## Supported ONVIF Actions
 
