@@ -3,8 +3,10 @@ import { extractSoapAction, hasSecurity } from "../utils/soapParser";
 
 export async function soapMiddleware(c: Context, next: Next) {
   const body = await c.req.text();
-  console.log(body);
-  console.log(hasSecurity(body) ? "AUTH: yes" : "AUTH: no");
+  if (process.env.DEBUG) {
+    console.log(body);
+    console.log(hasSecurity(body) ? "AUTH: yes" : "AUTH: no");
+  }
 
   const action = extractSoapAction(body);
   if (!action) {
