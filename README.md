@@ -58,7 +58,9 @@ Protect will auto-discover the cameras via WS-Discovery within a minute. If they
 
 ## Adding or Removing Cameras
 
-Copy an existing service block in `docker-compose.yml`, assign a new `ipv4_address` on your LAN subnet, and add the corresponding `CAM{n}_RTSP_URL` to `.env`. Redeploy with `docker compose up -d`.
+Copy an existing service block in `docker-compose.yml`, assign a new `ipv4_address` on your LAN subnet, a unique `mac_address` (see note below), and add the corresponding `CAM{n}_RTSP_URL` to `.env`. Redeploy with `docker compose up -d`.
+
+> **Why `mac_address` is pinned:** Docker's macvlan driver assigns a new random MAC address to a container every time it's recreated (image update, config change, host reboot). UniFi Protect identifies physical devices by MAC address, so without a pinned `mac_address`, every container recreate makes Protect see what looks like new hardware — causing repeated re-adoption prompts and duplicate camera entries. Pinning a fixed `mac_address` per service keeps each camera's identity stable indefinitely. Use any locally-administered MAC (second hex digit of the first byte — `2`, `6`, `a`, or `e` — keeps it out of real vendor ranges) that's unique across your services.
 
 ## Deploying with Portainer
 

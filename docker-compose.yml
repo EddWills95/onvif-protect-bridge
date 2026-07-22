@@ -23,6 +23,7 @@ services:
     networks:
       onvif:
         ipv4_address: 192.168.1.101
+        mac_address: "e6:14:3a:8b:84:df"
 
   cam2:
     image: eddwills95/onvif-protect-bridge:latest
@@ -36,6 +37,7 @@ services:
     networks:
       onvif:
         ipv4_address: 192.168.1.103
+        mac_address: "e2:ac:50:57:27:fe"
 
   cam3:
     image: eddwills95/onvif-protect-bridge:latest
@@ -49,6 +51,7 @@ services:
     networks:
       onvif:
         ipv4_address: 192.168.1.104
+        mac_address: "9e:56:01:3e:fc:e5"
 
   cam4:
     image: eddwills95/onvif-protect-bridge:latest
@@ -62,6 +65,7 @@ services:
     networks:
       onvif:
         ipv4_address: 192.168.1.105
+        mac_address: "86:72:e8:a9:e8:01"
 
   cam5:
     image: eddwills95/onvif-protect-bridge:latest
@@ -75,6 +79,7 @@ services:
     networks:
       onvif:
         ipv4_address: 192.168.1.106
+        mac_address: "7a:2d:dd:97:73:7f"
 
   cam6:
     image: eddwills95/onvif-protect-bridge:latest
@@ -88,3 +93,4 @@ services:
     networks:
       onvif:
         ipv4_address: 192.168.1.107
+        mac_address: "2a:32:bf:53:05:13"
